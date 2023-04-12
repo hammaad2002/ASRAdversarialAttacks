@@ -3,12 +3,11 @@ import torch
 from torch.autograd import Variable
 from typing import List, Optional, Tuple
 import torch.nn.functional as F
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 import Levenshtein
 import librosa
 import scipy
 from scipy import signal
-import numpy as np
 
 class ASRAttacks(object):
     '''
@@ -548,6 +547,7 @@ class ASRAttacks(object):
         # checking if the user is running this code in for loop or not
         if nested:
             leave = False
+            print('Leave')
 
         else:
             leave = True
