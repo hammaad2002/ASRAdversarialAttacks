@@ -547,7 +547,6 @@ class ASRAttacks(object):
         # checking if the user is running this code in for loop or not
         if nested:
             leave = False
-            print('Leave')
 
         else:
             leave = True
