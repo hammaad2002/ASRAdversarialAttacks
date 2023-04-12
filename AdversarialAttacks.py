@@ -177,7 +177,7 @@ class ASRAttacks(object):
 
     def BIM_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
           epsilon: float = 0.2, alpha: float = 0.1, 
-          num_iter: int = 10, targeted: bool = False) -> np.ndarray:
+          num_iter: int = 10, nested: bool = True,targeted: bool = False) -> np.ndarray:
 
         '''
         Basic Itertive Moment attack is implemented which is simple Fast Gradient 
@@ -205,6 +205,9 @@ class ASRAttacks(object):
         num_iter      : Number of iteration of attack
                         Type: int
 
+        nested        : if this attack in being run in a for loop with tqdm 
+                        Type: bool
+
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
                         Type: bool
@@ -221,6 +224,14 @@ class ASRAttacks(object):
 
         # Storing input in variable to add in noise later
         perturbed_input = input_
+
+        # checking if the user is running this code in for loop or not
+        if nested:
+            leave = False
+
+        else:
+            leave = True
+
         if targeted:
 
             # Assert that in targeted attack we have target present before we proceed
@@ -228,7 +239,7 @@ class ASRAttacks(object):
 
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(target)
-            for _ in tqdm(range(num_iter), colour="red"):
+            for _ in tqdm(range(num_iter), colour="red", leave = leave):
 
                 output, _ = self.model(input_.to(self.device))
 
@@ -272,7 +283,7 @@ class ASRAttacks(object):
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(untarget)
 
-            for _ in tqdm(range(num_iter), colour="red"):
+            for _ in tqdm(range(num_iter), colour="red", leave = leave):
         
                 output, _ = self.model(input_.to(self.device))
 
@@ -311,7 +322,7 @@ class ASRAttacks(object):
 
     def PGD_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
                  epsilon: float = 0.3, alpha: float = 0.01, num_iter: int = 40,
-                 targeted: bool = False) -> np.ndarray:
+                 nested: bool = True,targeted: bool = False) -> np.ndarray:
 
         '''
         Projected Gradient Descent attack is implemented which in simple terms is more 
@@ -339,6 +350,9 @@ class ASRAttacks(object):
 
         num_iter      : Number of iteration of attack
                         Type: int
+
+        nested        : if this attack in being run in a for loop with tqdm 
+                        Type: bool
 
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
@@ -377,7 +391,14 @@ class ASRAttacks(object):
             # Making this value true because now we have target to compute loss
             target = True
 
-        for _ in tqdm(range(num_iter), colour = 'red'):
+        # checking if the user is running this code in for loop or not
+        if nested:
+            leave = False
+
+        else:
+            leave = True
+
+        for _ in tqdm(range(num_iter), colour = 'red', leave = leave):
 
             # Calculate the CTC loss and gradients
             input_audio.requires_grad = True
@@ -424,7 +445,7 @@ class ASRAttacks(object):
            epsilon: float = 0.3, c: float = 1e-4, learning_rate: float = 0.01,
            num_iter: int = 1000, decrease_factor_eps: float = 0.8,
            num_iter_decrease_eps: int = 10, optimizer: str = None,
-           threshold: float = 0.5, targeted: bool = False) -> np.ndarray:
+           threshold: float = 0.5, nested: bool = True, targeted: bool = False) -> np.ndarray:
 
         '''
         Implements the Carlini and Wagner attack, the strongest white box 
@@ -467,6 +488,9 @@ class ASRAttacks(object):
 
         threshold     : threshold for lowering epsilon value
                         Type: float
+
+        nested        : if this attack in being run in a for loop with tqdm 
+                        Type: bool
 
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
@@ -521,7 +545,14 @@ class ASRAttacks(object):
         successful_attack = False 
         num_successful_attacks = 0
 
-        for i in tqdm(range(num_iter), colour="red"):
+        # checking if the user is running this code in for loop or not
+        if nested:
+            leave = False
+
+        else:
+            leave = True
+
+        for i in tqdm(range(num_iter), colour="red", leave = leave):
 
             # Zero the gradients
             optimizer.zero_grad()
@@ -584,7 +615,7 @@ class ASRAttacks(object):
                              learning_rate2: float = 0.01, num_iter1: int = 10000, num_iter2: int = 2000, 
                              decrease_factor_eps: float = 0.8, num_iter_decrease_eps: int = 10, 
                              optimizer1: str = None, optimizer2: str = None, threshold: float = 0.5, 
-                             alpha = 0.5) -> np.ndarray:
+                             nested: bool = True , alpha: float = 0.5) -> np.ndarray:
         
         '''
         Implements the Imperceptible ASR attack, which leverages the strongest white box 
@@ -596,7 +627,7 @@ class ASRAttacks(object):
 
         INPUT ARGUMENTS:
 
-        input_         : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
 
         target        : Target transcription (needed if the you want targeted 
@@ -635,8 +666,14 @@ class ASRAttacks(object):
 
         optimizer2     : Name of the optimizer to use for the attack stage 2. 
                          Type: str
+
+        nested         : if this attack in being run in a for loop with tqdm 
+                        Type: bool
         
         threshold      : threshold for lowering epsilon value
+                         Type: float
+
+        alpha          : controlling factor for second stage loss.
                          Type: float
 
         RETURNS:
@@ -646,12 +683,19 @@ class ASRAttacks(object):
         
         # This attack will be targeted for now, therefore...
         assert (target is not None), "Please pass a specific target transcription for performing this attack"
+
+        # checking if the user is running this code in for loop or not
+        if nested:
+            leave = False
+
+        else:
+            leave = True
         
         print("*"*5,"Attack Stage 1","*"*5) #stage 1 of Imperceptible ASR attack
         stageOneAud =  self.CW_ATTACK(input_ , target = target, epsilon = epsilon, c = c, learning_rate = learning_rate1,
                            num_iter = num_iter1, decrease_factor_eps = decrease_factor_eps, 
                            num_iter_decrease_eps = num_iter_decrease_eps, optimizer = optimizer1, 
-                           threshold = threshold, targeted = True)
+                           threshold = threshold, nested = True, targeted = True)
         
         # Convert the input audio to a PyTorch tensor
         input_audio = torch.from_numpy(stageOneAud).to(self.device).float()
@@ -689,7 +733,7 @@ class ASRAttacks(object):
         relu = torch.nn.ReLU()
         
         print("*"*5,"Attack Stage 2","*"*5) #stage 2 of Imperceptible ASR attack
-        for i in tqdm(range(num_iter2), colour = 'red'):
+        for i in tqdm(range(num_iter2), colour = 'red', leave = leave):
             
             # Zero the gradients
             optimizer.zero_grad()
