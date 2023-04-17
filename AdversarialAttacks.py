@@ -1230,6 +1230,7 @@ class ASRAttacks(object):
           win_length=2048,
           center=False,
           window=window_fn(2048).to(self.device),
+          return_complex=True,
         ).to(self.device)
 
         # Take abs of complex STFT results
