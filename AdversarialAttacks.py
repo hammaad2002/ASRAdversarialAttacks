@@ -1,30 +1,30 @@
+import torch.nn.functional as F
+from typing import List, Tuple
+from tqdm.notebook import tqdm
+from scipy import signal
+import librosa
 import numpy as np
 import torch
-from torch.autograd import Variable
-from typing import List, Optional, Tuple
-import torch.nn.functional as F
-from tqdm.notebook import tqdm
-import Levenshtein
-import librosa
 import scipy
-from scipy import signal
 
 class ASRAttacks(object):
     '''
     Adversarial Attack on ASR model. Right now it is specifically implemented for 
     wav2vec2.0 model from torchaudio hub.
-
+    
     It support the following attacks:
     1) Fast Gradient Sign Method  (FGSM)
     2) Basic Iterative Moment     (BIM)
     3) Projected Gradient Descent (PGD) 
     4) Carlini and Wagner Attack  (CW)
-    5) Imperceptible ASR Attack   
+    5) Imperceptible ASR Attack   (I-ASR)
     '''
     def __init__(self, model, device, labels: List[str]):
         '''
-        Create an instance of the class "ASRAttacks"
-        Input Arguments: 
+        Creates an instance of the class "ASRAttacks".
+        
+        INPUT ARGUMENTS: 
+        
         model  : The model on which the attack is supposed to be performed.
         device : Either 'cpu' if we have only CPU or 'cuda' if we have GPU
         labels : Label/Dictionary of the model.
@@ -36,7 +36,9 @@ class ASRAttacks(object):
     def _encode_transcription(self, transcription: List[str]) -> List[str]: #in future add dictionary input over here
         '''
         Will encode transcription according to the dictionary of the model.
-        Input Arguments:
+        
+        INPUT ARGUMENTS:
+        
         transcription    : transcription in a list. Ex: ["my name is mango"].
                            CAUTION:
                            Please make sure these characters are also present in the 
@@ -62,40 +64,43 @@ class ASRAttacks(object):
         # Returning the encoded transcription
         return encoded_transcription
 
-    def FGSM_ATTACK(self, input_: torch.Tensor, target: List[str]= None, 
+    def FGSM_ATTACK(self, input__: torch.Tensor, target: List[str]= None, 
            epsilon: float = 0.2, targeted: bool = False) -> np.ndarray:
-
+        
         '''
         Simple fast gradient sign method attack is implemented which is the simplest
         adversarial attack in this domain.
         For more information, see the paper: https://arxiv.org/pdf/1412.6572.pdf
-
+        
         INPUT ARGUMENTS:
-
-        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        
+        input__       : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
-
+                        
         target        : Target transcription (needed if the you want targeted 
                         attack) Ex: ["my name is mango."]. 
                         Type: List[str]
                         CAUTION:
                         Please make sure these characters are also present in the 
                         dictionary of the model also.
-
-        epsilon       : Noise controlling parameter.
+                        
+        epsilon       : Noise controlling parameter or step size.
                         Type: float
-
+                        
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
                         Type: bool
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
-
+                        
         RETURNS:
-
+        
         np.ndarray : Perturbed audio
         '''
+        # Cloning the original audio
+        input_ = input__.clone()
+        
         # Making our input differentiable 
         input_.requires_grad = True
 
@@ -105,45 +110,46 @@ class ASRAttacks(object):
         # Softmax Activation for computing logits
         output = F.log_softmax(output, dim=-1)
 
-        if targeted:
+        if targeted: # Condition for checking if the user wants 'targeted' attack to be performed
 
             # Assert that in targeted attack we have target present before we proceed
             assert target != None, "Target should not be 'None' in targeted attack. Please pass a target transcription."
-
+            
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(target)
 
             # Convert the target transcription to a PyTorch tensor
             target = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
 
-            # Computing CTC Loss
+            # Computing the CTC Loss
             output_lengths = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
             output = output.transpose(0, 1)
             target_lengths = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
             loss = F.ctc_loss(output, target, output_lengths, target_lengths, blank=0, reduction='mean')
 
-            # Zeroing the gradients of weights of the models
-            self.model.zero_grad()
-
             # Computing gradient of our input w.r.t loss
             loss.backward()
-            sign_grad = -input_.grad.data # If targeted then we will minimize our loss
+            
+            # If 'targeted' then we will minimize our loss to the respective target transcription
+            sign_grad = -input_.grad.sign() 
 
-            # Adding perturbation in the original input to make adversarial example    
+            # Calculating 'sign' of the FGSM attack and multiplying it with our small epsilon step
             perturbation = epsilon * sign_grad
+            
+            # Adding perturbation in the original input to make adversarial example   
             perturbed_input = input_ + perturbation
-
+       
             # Clamping the audio in original audio range (-1,1)
             perturbed_input = torch.clamp(perturbed_input, -1, 1)
 
-            # returning perturbed audio
+            # Returning perturbed audio
             return perturbed_input.detach().numpy()
 
-        else:      
+        else: # Condition for checking if the user wants 'untargeted' attack to be performed
 
             # Using the model's transcription as target in untargeted attack
-            untarget = self.INFER(input_.to(self.device))
-
+            untarget = list(self.INFER(input_.to(self.device)))
+            
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(untarget)
 
@@ -156,25 +162,25 @@ class ASRAttacks(object):
             target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
             loss = F.ctc_loss(output, target, output_length, target_length, blank=0, reduction='mean')
 
-            # Zeroing the gradients of weights of the models
-            self.model.zero_grad()
-
             # Computing gradient of our input w.r.t loss
             loss.backward()
 
             # If untargeted then we will maximize our loss
-            sign_grad = input_.grad.data 
+            sign_grad = input_.grad.sign() 
 
-            # Adding perturbation in the original input to make adversarial example    
-            perturbed_input = input_ + (epsilon * sign_grad)
+            # Calculating 'sign' of the FGSM attack and multiplying it with our small epsilon step
+            perturbation = epsilon * sign_grad
+            
+            # Adding perturbation in the original input to make adversarial example 
+            perturbed_input = input_ + perturbation
 
             # Clamping the audio in original audio range (-1,1)
             perturbed_input = torch.clamp(perturbed_input, -1, 1)
 
-            # returning perturbed audio
+            # Returning perturbed audio
             return perturbed_input.detach().numpy()
 
-    def BIM_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
+    def BIM_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
           epsilon: float = 0.2, alpha: float = 0.1, 
           num_iter: int = 10, nested: bool = True,targeted: bool = False) -> np.ndarray:
 
@@ -182,124 +188,159 @@ class ASRAttacks(object):
         Basic Itertive Moment attack is implemented which is simple Fast Gradient 
         Sign Attack but in loop. 
         For more information, see the paper: https://arxiv.org/abs/1607.02533
-
+        
         INPUT ARGUMENTS:
-
-        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        
+        input__       : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
-
+                        
         target        : Target transcription (needed if the you want targeted 
                         attack) Ex: ["my name is mango."]. 
                         Type: List[str]
                         CAUTION:
                         Please make sure these characters are also present in the 
                         dictionary of the model also.
-
-        epsilon       : Noise controlling parameter.
+                        
+        epsilon       : Maximum allowable noise for our audio.
                         Type: float
-
-        alpha         : Noise contribution in input controlling parameter
+                        
+        alpha         : Step size for noise to be added in each iteration
                         Type: float
-
+                        
         num_iter      : Number of iteration of attack
                         Type: int
-
+                        
         nested        : if this attack in being run in a for loop with tqdm 
                         Type: bool
-
+                        
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
                         Type: bool
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
-
+                        
         RETURNS:
-
+        
         np.ndarray : Perturbed audio
-        ''' 
+        '''
+        
+        # Cloning the original given audio
+        input_ = input__.clone()
+        
         # Making our input differentiable
         input_.requires_grad = True
 
         # Storing input in variable to add in noise later
-        perturbed_input = input_
+        original_input = input_.clone()
 
-        # checking if the user is running this code in for loop or not
+        # Checking if the user is running this code in for loop or not
         if nested:
             leave = False
 
         else:
             leave = True
-
-        if targeted:
+        
+        if targeted: # Condition for checking if the user wants 'targeted' attack to be performed
 
             # Assert that in targeted attack we have target present before we proceed
             assert target != None, "Target should not be 'None' in targeted attack. Please pass a target transcription."
 
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(target)
-            for _ in tqdm(range(num_iter), colour="red", leave = leave):
-
+            
+            for i in tqdm(range(num_iter), colour="red", leave = leave):
+   
+                # Forward pass
                 output, _ = self.model(input_.to(self.device))
 
                 # Softmax Activation for computing logits
                 output = F.log_softmax(output, dim=-1)
 
                 # Convert the target transcription to a PyTorch tensor
-                target = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+                target_ = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
 
-                # Zeroing the gradients of weights of the models
-                self.model.zero_grad()
-
-                # Computing CTC Loss
+                # Computing the CTC Loss
                 output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
                 output = output.transpose(0, 1)
                 target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
-                loss = F.ctc_loss(output, target, output_length, target_length, blank=0, reduction='mean')
+                loss = F.ctc_loss(output, target_, output_length, target_length, blank=0, reduction='mean')
 
                 # Computing gradients of our input w.r.t loss
                 loss.backward()
 
                 # If targeted then we will minimize our loss
                 sign_grad = -input_.grad.data 
-
+                
                 # Adding perturbation in our input
-                perturbed_input = perturbed_input + alpha * sign_grad
+                perturbed_input = original_input + (alpha * sign_grad.detach().sign())
 
                 # Clamping the perturbation in range (-eps, eps)
-                eta = torch.clamp(perturbed_input - input_, -epsilon, epsilon)
-
+                perturbation = torch.clamp(perturbed_input - original_input, -epsilon, epsilon)
+                
                 # Clamping the overall perturbated audio in the original audio range (-1, 1)
-                perturbed_inputs = torch.clamp(input_ + eta, -1, 1)
+                input_.data = torch.clamp(input_ + perturbation, -1, 1)
+                
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(filter(lambda x: x!= '',self.INFER(input_).split("|")))
+                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
 
-            # returning perturbed audio after the loop ends
-            return perturbed_inputs.detach().numpy()
+                # Computing WER while also making sure length of both strings is same
+                # This will also early stop the attack if we reach out target transcription
+                # before the completion of all iteration because further iteration will further
+                # increase noise in the original audio leading to bad/low SNR
+                if len(string1) == len(string2):
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                
+                # Making gradients of input zero
+                input_.grad.zero_()
+                
+            # Returning perturbed audio after the loop ends
+            return input_.detach().numpy()
 
-        else:
+        else: # Condition for checking if the user wants 'untargeted' attack to be performed
+            
             # Using the model's transcription as target in untargeted attack
-            untarget = self.INFER(input_.to(self.device))
-
-            # Encode the target transcription
-            encoded_transcription = self._encode_transcription(untarget)
-
-            for _ in tqdm(range(num_iter), colour="red", leave = leave):
-        
+            target = self.INFER(input_.to(self.device))
+            
+            for i in tqdm(range(num_iter), colour="red", leave = leave):
+                
+                # Using the model's transcription as target in untargeted attack
+                untarget = self.INFER(input_.to(self.device))
+                
+                # Encode the target transcription
+                encoded_transcription = self._encode_transcription(untarget)
+                
+                # Forward pass
                 output, _ = self.model(input_.to(self.device))
 
                 # Softmax Activation for computing logits
                 output = F.log_softmax(output, dim=-1)
 
                 # Convert the target transcription to a PyTorch tensor
-                target = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+                target_ = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
 
-                # Zeroing the gradients of weights of the models
-                self.model.zero_grad()
-
-                # Computing CTC Loss
+                # Computing the CTC Loss
                 output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
                 output = output.transpose(0, 1)
                 target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
-                loss = F.ctc_loss(output, target, output_length, target_length, blank=0, reduction='mean')
+                loss = F.ctc_loss(output, target_, output_length, target_length, blank=0, reduction='mean')
 
                 # Computing gradients of our input w.r.t loss
                 loss.backward()
@@ -308,18 +349,52 @@ class ASRAttacks(object):
                 sign_grad = input_.grad.data 
 
                 # Adding perturbation in our input
-                perturbed_input = perturbed_input + alpha * sign_grad
+                perturbed_input = original_input + (alpha * sign_grad.detach().sign())
 
                 # Clamping the perturbation in range (-eps, eps)
-                eta = torch.clamp(perturbed_input - input_, -epsilon, epsilon)
-
+                perturbation = torch.clamp(perturbed_input - original_input, -epsilon, epsilon)
+                
                 # Clamping the overall perturbated audio in the original audio range (-1, 1)
-                perturbed_inputs = torch.clamp(input_ + eta, -1, 1)
+                input_.data = torch.clamp(input_ + perturbation, -1, 1)
+                
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(self.INFER(input_).split("|"))
+                string2 = list(target.split("|"))
+                
+                # Removing empty spaces (if any) that cause error when computing WER
+                string1 = list(filter(lambda x: x!= '', string1))
+                string2 = list(filter(lambda x: x!= '', string2))
 
-            # returning perturbed audio after the loop ends
-            return perturbed_inputs.detach().numpy()
+                # Computing WER while also making sure length of both strings is same
+                # This will also early stop the attack if we reach out target transcription
+                # before the completion of all iteration because further iteration will further
+                # increase noise in the original audio leading to bad/low SNR
+                if len(string1) == len(string2):
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        return input_.detach().numpy()
+                
+                # Making gradients of input zero
+                input_.grad.zero_()
+            
+            # Returning perturbed audio after the loop ends
+            return input_.detach().numpy()
 
-    def PGD_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
+    def PGD_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
                  epsilon: float = 0.3, alpha: float = 0.01, num_iter: int = 40,
                  nested: bool = True,targeted: bool = False) -> np.ndarray:
 
@@ -328,68 +403,49 @@ class ASRAttacks(object):
         advanced version of BIM. In this attack we project our perturbation back to 
         some Lp norm and find perturbations in that particular region. 
         For more information, see the paper: https://arxiv.org/abs/1706.06083
-
+        
         INPUT ARGUMENTS:
-
-        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        
+        input__       : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
-
+                        
         target        : Target transcription (needed if the you want targeted 
                         attack) Ex: ["my name is mango."]. 
                         Type: List[str]
                         CAUTION:
                         Please make sure these characters are also present in the 
                         dictionary of the model also.
-
+                        
         epsilon       : Noise controlling parameter.
                         Type: float
-
-        alpha         : Noise contribution in input controlling parameter
+                        
+        alpha         : Step size for noise to be added in each iteration
                         Type: float
-
+                        
         num_iter      : Number of iteration of attack
                         Type: int
-
+                        
         nested        : if this attack in being run in a for loop with tqdm 
                         Type: bool
-
+                        
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
                         Type: bool
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
-
+                        
         RETURNS:
-
+        
         np.ndarray : Perturbed audio
         ''' 
-
-        # Making our input differentiable
-        input_audio = input_.clone().detach().requires_grad_(True)
-
-        # Putting our model in eval mode
-        self.model.eval()
-
-        # Storing the initial audio
-        original_audio = input_.clone().detach()
-
-        if targeted: 
-            # Assert that in targeted attack we have target present before we proceed
-            assert target != None, "Target should not be 'None' in targeted attack. Please pass a target transcription."
-
-            # Encode the target transcription
-            encoded_transcription = self._encode_transcription(target)
-
-        else: # If untargeted
-            untarget = self.INFER(input_audio) # Then we will use the original input's transcription as our target
-
-            # Encoding the untargeted transcription
-            encoded_transcription = self._encode_transcription(untarget)
-
-            # Making this value true because now we have target to compute loss
-            target = True
-
+        
+        # Cloning the original audio 
+        input_ = input__.clone().to(self.device) 
+        
+        # Making a zero differentiable tensor of same shape as input
+        delta = torch.zeros_like(input_, requires_grad=True).to(self.device)
+        
         # checking if the user is running this code in for loop or not
         if nested:
             leave = False
@@ -397,119 +453,257 @@ class ASRAttacks(object):
         else:
             leave = True
 
-        for _ in tqdm(range(num_iter), colour = 'red', leave = leave):
+        if targeted: # Condition for checking if the user wants 'targeted' attack to be performed
 
-            # Calculate the CTC loss and gradients
-            input_audio.requires_grad = True
+            # Assert that in targeted attack we have target present before we proceed
+            assert target != None, "Target should not be 'None' in targeted attack. Please pass a target transcription."
 
-            # Forward pass
-            output, _ = self.model(input_audio.to(self.device))
+            # Encode the target transcription
+            encoded_transcription = self._encode_transcription(target)
+            
+            # Convert the target transcription to a PyTorch tensor
+            target_ = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+            
+            for i in tqdm(range(num_iter), colour = 'red', leave = leave):
 
-            # Softmax Activation for computing logits
-            output = F.log_softmax(output, dim=-1)
+                # Forward pass
+                output, _ = self.model(input_ + delta)
 
-            if target is not None:
+                # Softmax Activation for computing logits
+                output = F.log_softmax(output, dim=-1)
 
-                # Preparing arguments for computing CTC Loss
+                # Computing CTC loss
                 output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
                 output = output.transpose(0, 1)
                 target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
-                target = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+                loss = F.ctc_loss(output, target_, output_length, target_length, blank=0, reduction='mean')
+                
+                # Computing gradients of our input w.r.t loss
+                loss.backward()
+                
+                # Update delta with gradient sign
+                sign = -1 # Negative sign because of targeted attack
+                delta.data = (delta + alpha * sign * delta.grad.detach().sign())
+                
+                # Perform projection of delta onto Lp ball
+                delta.data = delta.data.clamp(-epsilon, epsilon)
+                
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
+                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
 
-            # Computing CTC loss
-            loss = F.ctc_loss(output, target, output_length, target_length, blank=0, reduction='mean', zero_infinity=True) if targeted else -F.ctc_loss(output, target, output_length, target_length, blank=0, reduction='mean', zero_infinity=True)
+                # Computing WER while also making sure length of both strings is same
+                # This will also early stop the attack if we reach out target transcription
+                # before the completion of all iteration because further iteration will further
+                # increase noise in the original audio leading to bad/low SNR
+                if len(string1) == len(string2):
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        print("Breaking for loop because targeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                
+                # Zeroing the gradients so that they don't accumulate
+                delta.grad.zero_()
+                
+            # Returning perturbed audio after the loop ends
+            adv_example = input_ + delta
+            return adv_example.detach().cpu().numpy()
 
-            # Computing gradients of our input w.r.t loss
-            loss.backward()
+        else: # Condition for checking if the user wants 'untargeted' attack to be performed
+            
+            # We will use the original input's transcription as our target to move away from
+            target = self.INFER(input_) 
 
-            # Update the audio with the calculated gradients
-            with torch.no_grad():
+            for i in tqdm(range(num_iter), colour = 'red', leave = leave):
+                
+                # We will use the original input's transcription as our target to move away from
+                untarget = self.INFER(input_) 
 
-                    # Calculating perturbation to be added in input audio
-                    perturbation = torch.sign(input_audio.grad.data) * alpha
+                # Encode the target transcription
+                encoded_transcription = self._encode_transcription(untarget)
 
-                    # Adding calculated perturbation in the input audio
-                    input_audio += perturbation
+                # Convert the target transcription to a PyTorch tensor
+                target_ = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
 
-                    # Clip the audio within the epsilon boundary
-                    delta = torch.clamp(input_audio - original_audio, min=-epsilon, max=epsilon)
+                # Forward pass
+                output, _ = self.model(input_ + delta)
 
-                    # Clamping the overall perturbed audio in between the audio range
-                    input_audio = (original_audio + delta).clamp(min=-1, max=1)
-    
-        #returning perturbed adversarial example
-        return input_audio.detach().numpy()
+                # Softmax Activation for computing logits
+                output = F.log_softmax(output, dim=-1)
 
-    def CW_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
+                # Computing CTC loss
+                output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
+                output = output.transpose(0, 1)
+                target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
+                loss = F.ctc_loss(output, target_, output_length, target_length, blank=0, reduction='mean')
+                
+                # Computing gradients of our input w.r.t loss
+                loss.backward()
+                
+                # Update delta with gradient sign
+                sign = 1 # Positive sign because of untargeted attack
+                delta.data = (delta + alpha * sign * delta.grad.detach().sign())
+                
+                # Perform projection of delta onto Lp ball
+                delta.data = delta.data.clamp(-epsilon, epsilon)
+                
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
+                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+
+                # Computing WER while also making sure length of both strings is same
+                # This will also early stop the attack if we reach out target transcription
+                # before the completion of all iteration because further iteration will further
+                # increase noise in the original audio leading to bad/low SNR
+                if len(string1) == len(string2):
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) == 1:
+                        print("Breaking for loop because untargeted Attack is performed successfully !")
+                        adv_example = input_ + delta
+                        return adv_example.detach().cpu().numpy()
+                
+                # Zeroing the gradients so that they don't accumulate
+                delta.grad.zero_()
+                
+            # Returning perturbed audio after the loop ends
+            adv_example = input_ + delta
+            return adv_example.detach().cpu().numpy()
+
+    def CW_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
            epsilon: float = 0.3, c: float = 1e-4, learning_rate: float = 0.01,
-           num_iter: int = 1000, decrease_factor_eps: float = 0.8,
-           num_iter_decrease_eps: int = 10, optimizer: str = None,
-           threshold: float = 0.5, nested: bool = True, targeted: bool = False) -> np.ndarray:
+           num_iter: int = 1000, decrease_factor_eps: float = 1,
+           num_iter_decrease_eps: int = 10, optimizer: str = None, 
+           nested: bool = True, early_stop: bool = True, search_eps: bool = False,
+           targeted: bool = False) -> np.ndarray:
 
         '''
         Implements the Carlini and Wagner attack, the strongest white box 
         adversarial attack. This attack uses an optimization strategy to find the 
         adversarial transcription while keeping the perturbation as low as possible. 
         For more information, see the paper: https://arxiv.org/pdf/1801.01944.pdf
-
+        
         INPUT ARGUMENTS:
-
-        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        
+        input__       : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
-
+                        
         target        : Target transcription (needed if the you want targeted 
                         attack) Ex: ["my name is mango."]. 
                         Type: List[str]
                         CAUTION:
                         Please make sure these characters are also present in the 
                         dictionary of the model also.
-
+                        
         epsilon       : Noise controlling parameter.
                         Type: float
-
+                        
         c             : Regularization term controlling factor.
                         Type: float
-
+                        
         learning_rate : learning_rate of optimizer.
                         Type: float
-
+                        
         num_iter      : Number of iteration of attack.
                         Type: int
-
-        decrease_factor_eps   : Factor to decrease epsilon by during optimization 
+                        
+        decrease_factor_eps   : Factor to decrease epsilon during search
                                 Type: float
-
+                                
         num_iter_decrease_eps : Number of iterations after which to decrease epsilon
                                 Type: int
-
+                                
         optimizer     : Name of the optimizer to use for the attack. 
                         Type: str
-
-        threshold     : threshold for lowering epsilon value
-                        Type: float
-
+                        
         nested        : if this attack in being run in a for loop with tqdm 
                         Type: bool
-
+                        
+        early_stop    : if the user wants to end the attack as soon as the attack
+                        gets the target transcription.
+                        Type: bool
+                        
+        search_eps    : if the user wants the attack to search for the epsilon value
+                        on its own provided the initial epsilon value of large.
+                        Type: bool
+        
         targeted      : If the attack should be targeted towards your desired 
                         transcription or not.
                         Type: bool
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
+                        
         RETURNS:
-
+        
         np.ndarray : Perturbed audio
         '''
-
+        
+        # checking if user accidentally passed wrong arugments or not
+        if early_stop == True and search_eps == True:
+            raise Exception("Early stop and Epsilon search arguments, both cannot be true at the same time.")
+        
+        if epsilon <= 0:
+            raise Exception("Value of epsilon should be greater than 0")
+        
         # Convert the input audio to a PyTorch tensor
-        input_audio = input_.to(self.device).float()
+        input_audio = input__.clone().to(self.device).float()
 
         # Making audio differentiable
         input_audio.requires_grad_()
 
         # Cloning the original audio 
-        input_audio_orig = input_.clone().to(self.device)
+        input_audio_orig = input_audio.clone().to(self.device)
+        
+        # Define the optimizer
+        if optimizer == "Adam":
+
+            optimizer = torch.optim.Adam([input_audio], lr=learning_rate)
+
+        else:
+
+            optimizer = torch.optim.SGD([input_audio], lr=learning_rate)
+
+        # Setting our inital parameters
+        successful_attack = False 
+        num_successful_attacks = 0
+
+        # Checking if the user wants to run this code in for loop or not
+        if nested:
+            leave = False
+
+        else:
+            leave = True
 
         if targeted:
 
@@ -518,103 +712,253 @@ class ASRAttacks(object):
 
             # Encode the target transcription
             encoded_transcription = self._encode_transcription(target)
+            
+            # Convert the target transcription to a PyTorch tensor
+            target_tensor = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+            
+            for i in tqdm(range(num_iter), colour="red", leave = leave):
 
+                # Zero the gradients
+                optimizer.zero_grad()
+
+                # Compute the model’s prediction
+                output, _ = self.model(input_audio)
+
+                # Softmax Activation for computing logits
+                output = F.log_softmax(output, dim=-1)
+
+                # Compute the CTC loss function
+                output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
+                output = output.transpose(0, 1)
+                target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
+                loss_classifier = F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean')
+
+                # Regularization term to minimize the perturbation
+                loss_norm = torch.norm(input_audio - input_audio_orig)
+
+                # Combine the losses and compute gradients
+                loss = (c * loss_norm) + ( loss_classifier)
+
+                # Computing gradients of our input w.r.t loss
+                loss.backward()
+
+                # Update the input audio with gradients
+                optimizer.step()
+
+                # Calculating perturbation by subtracting the optimized audio from cloned one
+                perturbation = input_audio - input_audio_orig
+
+                # Project the perturbation onto the epsilon ball in range (-eps, eps)
+                perturbation = torch.clamp(perturbation, -epsilon, epsilon)
+
+                # Cliping to audio in range (-1, 1)
+                input_audio.data = torch.clamp(input_audio_orig + perturbation, -1, 1)
+
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(filter(lambda x: x!= '',self.INFER(input_audio).split("|")))
+                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+                
+                if early_stop:
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach our target transcription
+                    # before the completion of all iteration
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                        
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                        
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                
+                elif search_eps:
+                    # Computing WER while also making sure length of both strings is same
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 0:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                            
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                            
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                
+            adv_example = input_audio
+            return adv_example.detach().cpu().numpy()
+                
+        
         else: # If untargeted
 
             # Then we will use the model's transcription as our target
-            untarget = self.INFER(input_audio.to(self.device)) 
+            target = self.INFER(input_audio.to(self.device)) 
+            
+            for i in tqdm(range(num_iter), colour="red", leave = leave):
+                
+                # We will use the model's transcription as our target
+                untarget = self.INFER(input_audio.to(self.device)) 
 
-            # Encode the target transcription
-            encoded_transcription = self._encode_transcription(untarget)
+                # Encode the target transcription
+                encoded_transcription = self._encode_transcription(untarget)
 
-        # Convert the target transcription to a PyTorch tensor
-        target_tensor = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
+                # Convert the target transcription to a PyTorch tensor
+                target_tensor = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
 
-        if optimizer == "Adam":
+                # Zero the gradients
+                optimizer.zero_grad()
 
-            # Define the optimizer
-            optimizer = torch.optim.Adam([input_audio], lr=learning_rate)
+                # Compute the model’s prediction
+                output, _ = self.model(input_audio)
 
-        else:
+                # Softmax Activation for computing logits
+                output = F.log_softmax(output, dim=-1)
 
-            # Define the optimizer
-            optimizer = torch.optim.SGD([input_audio], lr=learning_rate)
+                # Compute the CTC loss function
+                output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
+                output = output.transpose(0, 1)
+                target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
+                loss_classifier = -F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean')
+                
+                # Regularization term to minimize the perturbation
+                loss_norm = torch.norm(input_audio - input_audio_orig)
 
-        # Setting our inital parameters
-        successful_attack = False 
-        num_successful_attacks = 0
+                # Combine the losses and compute gradients
+                loss = (c * loss_norm) + ( loss_classifier)
 
-        # checking if the user is running this code in for loop or not
-        if nested:
-            leave = False
+                # Computing gradients of our input w.r.t loss
+                loss.backward()
 
-        else:
-            leave = True
+                # Update the input audio with gradients
+                optimizer.step()
 
-        for i in tqdm(range(num_iter), colour="red", leave = leave):
+                # Calculating perturbation by subtracting the optimized audio from cloned one
+                perturbation = input_audio - input_audio_orig
 
-            # Zero the gradients
-            optimizer.zero_grad()
+                # Project the perturbation onto the epsilon ball in range (-eps, eps)
+                perturbation = torch.clamp(perturbation, -epsilon, epsilon)
 
-            # Compute the model’s prediction
-            output, _ = self.model(input_audio)
+                # Cliping to audio in range (-1, 1)
+                input_audio.data = torch.clamp(input_audio_orig + perturbation, -1, 1)
 
-            # Softmax Activation for computing logits
-            output = F.log_softmax(output, dim=-1)
+                # Storing model's current inference and target transcription in new variables for computing WER
+                string1 = list(filter(lambda x: x!= '',self.INFER(input_audio).split("|")))
+                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
 
-            # Compute the CTC loss function
-            output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
-            output = output.transpose(0, 1)
-            target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
-            loss_classifier = F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean', zero_infinity=True) if targeted else -F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean', zero_infinity=True)
+                if early_stop:
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach our target transcription
+                    # before the completion of all iteration
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                        
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                        
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_audio
+                            return adv_example.detach().cpu().numpy()
+                
+                elif search_eps:
+                    # Computing WER while also making sure length of both strings is same
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 1:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                            
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                            
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            num_successful_attacks += 1
+                            if num_successful_attacks >= num_iter_decrease_eps:
+                                successful_attack = True
+                                epsilon *= decrease_factor_eps
+                                num_successful_attacks = 0
+                            else:
+                                successful_attack = False
+                
+            adv_example = input_audio
+            return adv_example.detach().cpu().numpy()
 
-            # Regularization term to minimize the perturbation
-            loss_regularizer = c * torch.norm(input_audio - input_audio_orig)
-
-            # Combine the losses and compute gradients
-            loss = loss_classifier + loss_regularizer
-
-            # Computing gradients of our input w.r.t loss
-            loss.backward()
-
-            # Update the input audio with gradients
-            optimizer.step()
-
-            # Calculating perturbation by subtracting the optimized audio from cloned one
-            perturbation = input_audio - input_audio_orig
-
-            # Project the perturbation onto the epsilon ball in range (-eps, eps)
-            perturbation = torch.clamp(perturbation, -epsilon, epsilon)
-
-            # Cliping to audio in range (-1, 1)
-            input_audio.data = torch.clamp(input_audio_orig + perturbation, -1, 1)
-
-            # Check if the attack is successful or not using Levenshtein distance
-            predicted_transcription = self.INFER(input_audio)
-            if Levenshtein.ratio(predicted_transcription, target) > threshold:
-                print(Levenshtein.ratio(predicted_transcription, target))
-                print("This is predicted: ",list(predicted_transcription))
-                print("This is our target: ",target)
-                num_successful_attacks += 1
-                if num_successful_attacks >= num_iter_decrease_eps:
-                    successful_attack = True
-                    epsilon *= decrease_factor_eps
-                    print("Epsilon value after decrease: ", epsilon)
-                    num_successful_attacks = 0
-                else:
-                    successful_attack = False
-                    
-            if successful_attack and epsilon <= 0:
-                break
-
-        return input_audio.detach().cpu().numpy()
-
-    def IMPERCEPTIBLE_ATTACK(self, input_: torch.Tensor, target: List[str] = None,
+    def IMPERCEPTIBLE_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
                              epsilon: float = 0.3, c: float = 1e-4, learning_rate1: float = 0.01, 
                              learning_rate2: float = 0.01, num_iter1: int = 10000, num_iter2: int = 2000, 
-                             decrease_factor_eps: float = 0.8, num_iter_decrease_eps: int = 10, 
-                             optimizer1: str = None, optimizer2: str = None, threshold: float = 0.5, 
-                             nested: bool = True , alpha: float = 0.5) -> np.ndarray:
+                             decrease_factor_eps: float = 1.0, num_iter_decrease_eps: int = 10, 
+                             optimizer1: str = None, optimizer2: str = None, nested: bool = True , 
+                             early_stop_cw: bool = True, search_eps_cw: bool = False, alpha: float = 0.5) -> np.ndarray:
         
         '''
         Implements the Imperceptible ASR attack, which leverages the strongest white box 
@@ -623,62 +967,68 @@ class ASRAttacks(object):
         stages. In first stage we perform simple CW attack and in 2nd stage we make sure our 
         added perturbations are imperceptible. 
         For more information, see the paper: https://arxiv.org/abs/1903.10346
-
+        
         INPUT ARGUMENTS:
-
-        input_        : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
+        
+        input__       : Input audio. Ex: Tensor[0.1,0.3,...] or (samples,)
                         Type: torch.Tensor
-
+                        
         target        : Target transcription (needed if the you want targeted 
-                        attack) Ex: ["my name is mango."]. 
+                        attack) Ex: ["my name is mango."]
                         Type: List[str]
                         CAUTION:
                         Please make sure these characters are also present in the 
-                        dictionary of the model also.
-
-        epsilon       : Noise controlling parameter.
+                        dictionary of the model also
+                        
+        epsilon       : Noise controlling parameter
                         Type: float
-
-        c             : Regularization term controlling factor.
+                        
+        c             : Regularization term controlling factor
                         Type: float
-
-        learning_rate1: learning_rate of optimizer for stage 1.
+                        
+        learning_rate1: learning_rate of optimizer for stage 1
                         Type: float
         
-        learning_rate2: learning_rate of optimizer for stage 2.
+        learning_rate2: learning_rate of optimizer for stage 2
                         Type: float
-
-        num_iter1     : Number of iteration of attack stage 1.
+                        
+        num_iter1     : Number of iteration of attack stage 1
                         Type: int
         
-        num_iter2     : Number of iteration of attack stage 2.
+        num_iter2     : Number of iteration of attack stage 2
                         Type: int
-
+                        
         decrease_factor_eps   : Factor to decrease epsilon by during optimization 
                                 Type: float
-
+                                
         num_iter_decrease_eps : Number of iterations after which to decrease epsilon
                                 Type: int
-
-        optimizer1     : Name of the optimizer to use for the attack stage 1. 
+                                
+        optimizer1     : Name of the optimizer to use for the attack stage 1
                          Type: str
-
-        optimizer2     : Name of the optimizer to use for the attack stage 2. 
+                         
+        optimizer2     : Name of the optimizer to use for the attack stage 2
                          Type: str
-
+                         
         nested         : if this attack in being run in a for loop with tqdm 
-                        Type: bool
+                         Type: bool
         
-        threshold      : threshold for lowering epsilon value
+        early_stop_cw  : if the user wants 1st stage attack to early stop or not
+                         Type: bool
+        
+        search_eps_cw  : if the user wants 1st stage attack to search for epsilon 
+                         value provided a large intial epsilon value is provided
+                         Type: bool
+                         
+        alpha          : regularization term for second stage loss
                          Type: float
-
-        alpha          : controlling factor for second stage loss.
-                         Type: float
-
+                         
         RETURNS:
-
-        np.ndarray : Perturbed audio
+        
+        np.ndarray     : Perturbed audio
         '''
+        
+        input_ = input__.clone()
         
         # This attack will be targeted for now, therefore...
         assert (target is not None), "Please pass a specific target transcription for performing this attack"
@@ -689,12 +1039,13 @@ class ASRAttacks(object):
 
         else:
             leave = True
-        
+            
         print("*"*5,"Attack Stage 1","*"*5) #stage 1 of Imperceptible ASR attack
         stageOneAud =  self.CW_ATTACK(input_ , target = target, epsilon = epsilon, c = c, learning_rate = learning_rate1,
                            num_iter = num_iter1, decrease_factor_eps = decrease_factor_eps, 
                            num_iter_decrease_eps = num_iter_decrease_eps, optimizer = optimizer1, 
-                           threshold = threshold, nested = True, targeted = True)
+                           nested = True, early_stop = early_stop_cw, search_eps = search_eps_cw, targeted = True)
+
         
         # Convert the input audio to a PyTorch tensor
         input_audio = torch.from_numpy(stageOneAud).to(self.device).float()
@@ -710,7 +1061,7 @@ class ASRAttacks(object):
                                                                  n_fft = 2048, sample_rate = 16000)
         
         # Taking transpose of threshold to store it in correct order
-        theta = theta.transpose(1, 0)
+        theta = torch.tensor(theta.transpose(1, 0)).to(self.device)
           
         if optimizer2 == "Adam":
 
@@ -731,9 +1082,12 @@ class ASRAttacks(object):
         # Preparing relu activation for furthur use
         relu = torch.nn.ReLU()
         
+        losss = []
+        examplee = []
+        
         print("*"*5,"Attack Stage 2","*"*5) #stage 2 of Imperceptible ASR attack
         for i in tqdm(range(num_iter2), colour = 'red', leave = leave):
-            
+                      
             # Zero the gradients
             optimizer.zero_grad()
 
@@ -747,13 +1101,13 @@ class ASRAttacks(object):
             output_length = torch.tensor([output.shape[1]], dtype=torch.long).to(self.device)
             output = output.transpose(0, 1)
             target_length = torch.tensor([len(encoded_transcription)], dtype=torch.long).to(self.device)
-            loss_classifier = F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean', zero_infinity=True)
-
+            loss_classifier = F.ctc_loss(output, target_tensor, output_length, target_length, blank=0, reduction='mean')
+            
             # Regularization term to minimize the perturbation
-            loss_regularizer = c * torch.norm(torch.from_numpy(stageOneAud).to(self.device) - input_audio_orig)
+            loss_regularizer = torch.norm(input_audio - input_audio_orig)
 
             # Combine the losses and compute gradients
-            loss1 = loss_classifier + loss_regularizer
+            loss1 = ( torch.tensor(c) * loss_classifier) + (loss_regularizer)
             
             # Calculating perturbation by subtracting the optimized audio from cloned one
             perturbation = input_audio - input_audio_orig
@@ -764,10 +1118,10 @@ class ASRAttacks(object):
             )
             
             # Calculating the loss between perturbation's PSD and original audio's PSD
-            loss2 = torch.mean(relu(psd_transform_delta - torch.tensor(theta).to(self.device)))
+            loss2 = torch.mean(relu(psd_transform_delta - theta))
             
             # Summing both CW loss and PSD loss
-            loss = loss1.type(torch.float64) + torch.tensor(alpha).to(self.device) * loss2
+            loss = loss1.type(torch.float64) + (torch.tensor(alpha).to(self.device) * loss2)
             
             # Taking mean of both losses
             loss = torch.mean(loss)
@@ -777,10 +1131,69 @@ class ASRAttacks(object):
 
             # Update the input audio with gradients
             optimizer.step()
-
-        return input_audio.detach().cpu().numpy() 
             
+            # Storing model's current inference and target transcription in new variables for computing WER
+            string1 = list(filter(lambda x: x!= '',self.INFER(input_audio).split("|")))
+            string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+            
+            if len(losss) <= 300: #buffer logic
+                
+                losss.append(loss)
+                examplee.append(input_audio.detach().cpu().numpy())
+            
+            else:
+                
+                del losss[0]
+                del examplee[0]
+                losss.append(loss)
+                examplee.append(input_audio.detach().cpu().numpy())
+            
+            if i % 20 == 0: # if every 20 iterations the transcription matches then alpha value will be increased
         
+                if len(string1) == len(string2):
+                    if wer(string1, string2) == 0:
+                        alpha = alpha * 1.2
+
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        alpha = alpha * 1.2
+
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) == 0:
+                        alpha = alpha * 1.2
+            
+            if i % 50 == 0: # if every 50 iterations the transcription does not match then alpha value will be decreased
+        
+                if len(string1) == len(string2):
+                    if wer(string1, string2) != 0:
+                        alpha = alpha * 0.8
+  
+                elif len(string1) > len(string2):
+                    diff = len(string1) - len(string2)
+                    for i in range(diff):
+                        string2.append("<eps>")
+                    if wer(string1, string2) != 0:
+                        alpha = alpha * 0.8
+
+                else:
+                    diff = len(string2) - len(string1)
+                    for i in range(diff):
+                        string1.append("<eps>")
+                    if wer(string1, string2) != 0:
+                        alpha = alpha * 0.8
+        
+        #return the example with the lowest loss among the stored examples
+        minimumLoss = min(losss) 
+        indexLoss = losss.index(minimumLoss)
+        adv_example = examplee[indexLoss]
+        return adv_example 
+               
     def _psd_transform(self, delta: "torch.Tensor", original_max_psd: np.ndarray) -> "torch.Tensor":
         
         '''
@@ -798,7 +1211,7 @@ class ASRAttacks(object):
                            Type: np.ndarray
                            
         RETURNS:
-
+        
         torch.Tensor : The psd matrix.
         '''
         
@@ -861,7 +1274,7 @@ class ASRAttacks(object):
                            Type: int
                            
         RETURNS:
-
+        
         Tuple[np.ndarray, np.ndarray] : A tuple containing (masking threshold, maximum psd)
         '''
         
@@ -972,7 +1385,7 @@ class ASRAttacks(object):
                         Type: torch.Tensor
                          
         RETURNS:
-
+        
         str           : Model's transcription from the given audio.
         '''
 
@@ -983,4 +1396,3 @@ class ASRAttacks(object):
         encodedTrans = torch.unique_consecutive(encodedTrans, dim=-1)
         indices = [i for i in encodedTrans if i != blank]
         return "".join([self.labels[i] for i in indices])
-    
