@@ -1223,7 +1223,7 @@ class ASRAttacks(object):
         # Return STFT of delta
         delta_stft = torch.stft(
           delta,
-          n_fft=2048,
+          2048,
           hop_length=512,
           win_length=2048,
           center=False,
