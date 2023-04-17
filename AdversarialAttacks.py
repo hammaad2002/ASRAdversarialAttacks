@@ -6,6 +6,7 @@ import librosa
 import numpy as np
 import torch
 import scipy
+from functools import reduce
 
 class ASRAttacks(object):
     '''
