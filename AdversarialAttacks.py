@@ -1216,8 +1216,6 @@ class ASRAttacks(object):
         
         torch.Tensor : The psd matrix.
         '''
-        
-        import torch
 
         # Get window for the transformation
         window_fn = torch.hann_window
@@ -1230,8 +1228,7 @@ class ASRAttacks(object):
           win_length=2048,
           center=False,
           window=window_fn(2048).to(self.device),
-          return_complex=True,
-        ).to(self.device)
+          return_complex=True).to(self.device)
 
         # Take abs of complex STFT results
         transformed_delta = torch.sqrt(torch.sum(torch.square(delta_stft), -1))
