@@ -1209,7 +1209,7 @@ class ASRAttacks(object):
         delta            : It is the perturbation added in the audio.
                            Type: torch.Tensor
         
-        original_max_psd : It is the maximum PDF of the original clean audio.
+        original_max_psd : It is the maximum PSD of the original clean audio.
                            Type: np.ndarray
                            
         RETURNS:
@@ -1220,7 +1220,7 @@ class ASRAttacks(object):
         import torch
 
         # Get window for the transformation
-        window_fn = torch.hann_window  # type: ignore
+        window_fn = torch.hann_window
 
         # Return STFT of delta
         delta_stft = torch.stft(
