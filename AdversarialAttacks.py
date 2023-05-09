@@ -1423,7 +1423,7 @@ class ASRAttacks(object):
         wer_count = 0
         if targeted == True:
             for i in range(len(audios)):
-                prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
+                prediction = self.INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i]
                 word_error_rate = max(1 - wer(reference.split(" "), list(filter(lambda x: x!='', prediction.split("|")))), 0)
                 wer_count += word_error_rate
@@ -1431,7 +1431,7 @@ class ASRAttacks(object):
                     return wer_count/len(audios)
         else:
             for i in range(len(audios)):
-                prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
+                prediction = self.INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i]
                 word_error_rate = min(wer(reference.split(" "), list(filter(lambda x: x!='', prediction.split("|")))), 1)
                 wer_count += word_error_rate
