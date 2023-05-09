@@ -1424,8 +1424,20 @@ class ASRAttacks(object):
         if targeted == True:
             for i in range(len(audios)):
                 prediction = self.INFER(torch.from_numpy(audios[i]))
-                reference  = ground_truth[i]
-                word_error_rate = max(1 - wer(reference.split(" "), list(filter(lambda x: x!='', prediction.split("|")))), 0)
+                reference  = ground_truth[i].split(" ")
+                prediction = list(filter(lambda x: x!='', prediction.split("|")))
+                if len(prediction) == len(reference):
+                    word_error_rate = max(1 - wer(reference, prediction), 0)
+                elif len(prediction) > len(reference):
+                    diff = len(prediction) - len(reference)
+                    for i in range(diff):
+                        reference.append("<eps>")
+                    word_error_rate = max(1 - wer(reference, prediction), 0)
+                else:
+                    diff = len(reference) - len(prediction)
+                    for i in range(diff):
+                        prediction.append("<eps>")
+                    word_error_rate = max(1 - wer(reference, prediction), 0)
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
                     return wer_count/len(audios)
@@ -1433,7 +1445,19 @@ class ASRAttacks(object):
             for i in range(len(audios)):
                 prediction = self.INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i]
-                word_error_rate = min(wer(reference.split(" "), list(filter(lambda x: x!='', prediction.split("|")))), 1)
+                prediction = list(filter(lambda x: x!='', prediction.split("|")))
+                if len(prediction) == len(reference):
+                    word_error_rate = min(wer(reference, list(filter(lambda x: x!='', prediction.split("|")))), 1)
+                elif len(prediction) > len(reference):
+                    diff = len(prediction) - len(reference)
+                    for i in range(diff):
+                        reference.append("<eps>")
+                    word_error_rate = min(wer(reference, list(filter(lambda x: x!='', prediction.split("|")))), 1)
+                else:
+                    diff = len(reference) - len(prediction)
+                    for i in range(diff):
+                        prediction.append("<eps>")
+                    word_error_rate = min(wer(reference, list(filter(lambda x: x!='', prediction.split("|")))), 1)
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
                     return wer_count/len(audios)
