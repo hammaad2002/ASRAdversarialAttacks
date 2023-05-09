@@ -1401,7 +1401,7 @@ class ASRAttacks(object):
         return "".join([self.labels[i] for i in indices])
 
     def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> int:
-        
+
         '''
         Computes WER of a single audio or batch of audios
 
@@ -1426,7 +1426,6 @@ class ASRAttacks(object):
                 prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
                 reference  = ground_truth[i]
                 word_error_rate = max(1 - wer(reference, prediction), 0)
-                print(word_error_rate)
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
                     return wer_count/len(audios)
@@ -1435,7 +1434,6 @@ class ASRAttacks(object):
                 prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
                 reference  = ground_truth[i]
                 word_error_rate = min(wer(reference, prediction), 1)
-                print(word_error_rate)
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
                     return wer_count/len(audios)
