@@ -1399,3 +1399,43 @@ class ASRAttacks(object):
         encodedTrans = torch.unique_consecutive(encodedTrans, dim=-1)
         indices = [i for i in encodedTrans if i != blank]
         return "".join([self.labels[i] for i in indices])
+
+    def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> int:
+        
+        '''
+        Computes WER of a single audio or batch of audios
+
+        INPUT ARGUMENTS:
+
+        ground_truth : Original transcription or reference transcription.
+                       Type: List[str]
+
+        audios       : Audios who's transcription from model will be used.
+                       Type: List[np.ndarray]
+
+        targeted     : if the WER should be computed according to the way for
+                       targeted attack or not.
+
+        RETURNS:
+
+        int         : average WER of given audio/audios
+        '''
+        wer_count = 0
+        if targeted == True:
+            for i in range(len(audios)):
+                prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
+                reference  = ground_truth[i]
+                word_error_rate = max(1 - wer(reference, prediction), 0)
+                print(word_error_rate)
+                wer_count += word_error_rate
+                if i == len(audios) - 1:
+                    return wer_count/len(audios)
+        else:
+            for i in range(len(audios)):
+                prediction = self.INFER(torch.from_numpy(audios[i])).replace("|", " ")
+                reference  = ground_truth[i]
+                word_error_rate = min(wer(reference, prediction), 1)
+                print(word_error_rate)
+                wer_count += word_error_rate
+                if i == len(audios) - 1:
+                    return wer_count/len(audios)
