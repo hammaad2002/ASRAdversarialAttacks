@@ -184,7 +184,7 @@ class ASRAttacks(object):
 
     def BIM_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
           epsilon: float = 0.2, alpha: float = 0.1, 
-          num_iter: int = 10, nested: bool = True,targeted: bool = False, early_stop:bool = False) -> np.ndarray:
+          num_iter: int = 10, nested: bool = True,targeted: bool = False, early_stop: bool = False) -> np.ndarray:
 
         '''
         Basic Itertive Moment attack is implemented which is simple Fast Gradient 
@@ -405,7 +405,7 @@ class ASRAttacks(object):
 
     def PGD_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
                  epsilon: float = 0.3, alpha: float = 0.01, num_iter: int = 40,
-                 nested: bool = True,targeted: bool = False) -> np.ndarray:
+                 nested: bool = True,targeted: bool = False, early_stop: bool = False) -> np.ndarray:
 
         '''
         Projected Gradient Descent attack is implemented which in simple terms is more 
@@ -443,6 +443,9 @@ class ASRAttacks(object):
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
+
+        early_stop    : If user wants to stop the attack early if the attack reaches the target transcription before the total number of iterations.
+                        Type: bool
                         
         RETURNS:
         
@@ -496,36 +499,38 @@ class ASRAttacks(object):
                 
                 # Perform projection of delta onto Lp ball
                 delta.data = delta.data.clamp(-epsilon, epsilon)
-                
-                # Storing model's current inference and target transcription in new variables for computing WER
-                string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
-                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
 
-                # Computing WER while also making sure length of both strings is same
-                # This will also early stop the attack if we reach out target transcription
-                # before the completion of all iteration because further iteration will further
-                # increase noise in the original audio leading to bad/low SNR
-                if len(string1) == len(string2):
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
-                elif len(string1) > len(string2):
-                    diff = len(string1) - len(string2)
-                    for i in range(diff):
-                        string2.append("<eps>")
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
-                else:
-                    diff = len(string2) - len(string1)
-                    for i in range(diff):
-                        string1.append("<eps>")
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
+                if early_stop: # if user have enabled early stopping then do the following tasks or else run all iterations
+                
+                    # Storing model's current inference and target transcription in new variables for computing WER
+                    string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
+                    string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach out target transcription
+                    # before the completion of all iteration because further iteration will further
+                    # increase noise in the original audio leading to bad/low SNR
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
                 
                 # Zeroing the gradients so that they don't accumulate
                 delta.grad.zero_()
@@ -571,36 +576,38 @@ class ASRAttacks(object):
                 
                 # Perform projection of delta onto Lp ball
                 delta.data = delta.data.clamp(-epsilon, epsilon)
-                
-                # Storing model's current inference and target transcription in new variables for computing WER
-                string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
-                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
 
-                # Computing WER while also making sure length of both strings is same
-                # This will also early stop the attack if we reach out target transcription
-                # before the completion of all iteration because further iteration will further
-                # increase noise in the original audio leading to bad/low SNR
-                if len(string1) == len(string2):
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
-                elif len(string1) > len(string2):
-                    diff = len(string1) - len(string2)
-                    for i in range(diff):
-                        string2.append("<eps>")
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
-                else:
-                    diff = len(string2) - len(string1)
-                    for i in range(diff):
-                        string1.append("<eps>")
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        adv_example = input_ + delta
-                        return adv_example.detach().cpu().numpy()
+                if early_stop: # if user have enabled early stopping then do the following tasks or else run all iterations
+                
+                    # Storing model's current inference and target transcription in new variables for computing WER
+                    string1 = list(filter(lambda x: x!= '',self.INFER(input_ + delta).split("|")))
+                    string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach out target transcription
+                    # before the completion of all iteration because further iteration will further
+                    # increase noise in the original audio leading to bad/low SNR
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            adv_example = input_ + delta
+                            return adv_example.detach().cpu().numpy()
                 
                 # Zeroing the gradients so that they don't accumulate
                 delta.grad.zero_()
