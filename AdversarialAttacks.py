@@ -184,7 +184,7 @@ class ASRAttacks(object):
 
     def BIM_ATTACK(self, input__: torch.Tensor, target: List[str] = None,
           epsilon: float = 0.2, alpha: float = 0.1, 
-          num_iter: int = 10, nested: bool = True,targeted: bool = False) -> np.ndarray:
+          num_iter: int = 10, nested: bool = True,targeted: bool = False, early_stop:bool = False) -> np.ndarray:
 
         '''
         Basic Itertive Moment attack is implemented which is simple Fast Gradient 
@@ -221,6 +221,9 @@ class ASRAttacks(object):
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
+
+        early_stop    : If user wants to stop the attack early if the attack reaches the target transcription before the total number of iterations.
+                        Type: bool
                         
         RETURNS:
         
@@ -283,32 +286,34 @@ class ASRAttacks(object):
                 # Clamping the overall perturbated audio in the original audio range (-1, 1)
                 input_.data = torch.clamp(input_ + perturbation, -1, 1)
                 
-                # Storing model's current inference and target transcription in new variables for computing WER
-                string1 = list(filter(lambda x: x!= '',self.INFER(input_).split("|")))
-                string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+                if early_stop: # if user have enabled early stopping then do the following tasks or else run all iterations
 
-                # Computing WER while also making sure length of both strings is same
-                # This will also early stop the attack if we reach out target transcription
-                # before the completion of all iteration because further iteration will further
-                # increase noise in the original audio leading to bad/low SNR
-                if len(string1) == len(string2):
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        return input_.detach().numpy()
-                elif len(string1) > len(string2):
-                    diff = len(string1) - len(string2)
-                    for i in range(diff):
-                        string2.append("<eps>")
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        return input_.detach().numpy()
-                else:
-                    diff = len(string2) - len(string1)
-                    for i in range(diff):
-                        string1.append("<eps>")
-                    if wer(string1, string2) == 0:
-                        print("Breaking for loop because targeted Attack is performed successfully !")
-                        return input_.detach().numpy()
+                    # Storing model's current inference and target transcription in new variables for computing WER
+                    string1 = list(filter(lambda x: x!= '',self.INFER(input_).split("|")))
+                    string2 = list(reduce(lambda x,y: x+y, target).split("|"))
+
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach out target transcription
+                    # before the completion of all iteration because further iteration will further
+                    # increase noise in the original audio leading to bad/low SNR
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            return input_.detach().numpy()
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            return input_.detach().numpy()
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 0:
+                            print("Breaking for loop because targeted Attack is performed successfully !")
+                            return input_.detach().numpy()
                 
                 # Making gradients of input zero
                 input_.grad.zero_()
@@ -358,37 +363,39 @@ class ASRAttacks(object):
                 
                 # Clamping the overall perturbated audio in the original audio range (-1, 1)
                 input_.data = torch.clamp(input_ + perturbation, -1, 1)
-                
-                # Storing model's current inference and target transcription in new variables for computing WER
-                string1 = list(self.INFER(input_).split("|"))
-                string2 = list(target.split("|"))
-                
-                # Removing empty spaces (if any) that cause error when computing WER
-                string1 = list(filter(lambda x: x!= '', string1))
-                string2 = list(filter(lambda x: x!= '', string2))
 
-                # Computing WER while also making sure length of both strings is same
-                # This will also early stop the attack if we reach out target transcription
-                # before the completion of all iteration because further iteration will further
-                # increase noise in the original audio leading to bad/low SNR
-                if len(string1) == len(string2):
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        return input_.detach().numpy()
-                elif len(string1) > len(string2):
-                    diff = len(string1) - len(string2)
-                    for i in range(diff):
-                        string2.append("<eps>")
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        return input_.detach().numpy()
-                else:
-                    diff = len(string2) - len(string1)
-                    for i in range(diff):
-                        string1.append("<eps>")
-                    if wer(string1, string2) == 1:
-                        print("Breaking for loop because untargeted Attack is performed successfully !")
-                        return input_.detach().numpy()
+                if early_stop: # if user have enabled early stopping then do the following tasks or else run all iterations
+                
+                    # Storing model's current inference and target transcription in new variables for computing WER
+                    string1 = list(self.INFER(input_).split("|"))
+                    string2 = list(target.split("|"))
+                    
+                    # Removing empty spaces (if any) that cause error when computing WER
+                    string1 = list(filter(lambda x: x!= '', string1))
+                    string2 = list(filter(lambda x: x!= '', string2))
+
+                    # Computing WER while also making sure length of both strings is same
+                    # This will also early stop the attack if we reach out target transcription
+                    # before the completion of all iteration because further iteration will further
+                    # increase noise in the original audio leading to bad/low SNR
+                    if len(string1) == len(string2):
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            return input_.detach().numpy()
+                    elif len(string1) > len(string2):
+                        diff = len(string1) - len(string2)
+                        for i in range(diff):
+                            string2.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            return input_.detach().numpy()
+                    else:
+                        diff = len(string2) - len(string1)
+                        for i in range(diff):
+                            string1.append("<eps>")
+                        if wer(string1, string2) == 1:
+                            print("Breaking for loop because untargeted Attack is performed successfully !")
+                            return input_.detach().numpy()
                 
                 # Making gradients of input zero
                 input_.grad.zero_()
