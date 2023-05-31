@@ -1461,7 +1461,7 @@ class ASRAttacks(object):
         sib_saver = []
         if targeted == True:
             for i in range(len(audios)):
-                prediction = INFER(torch.from_numpy(audios[i]))
+                prediction = self.INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i].split(" ")
                 prediction = list(filter(lambda x: x!='', prediction.split("|")))
                 if len(prediction) == len(reference):
@@ -1484,7 +1484,7 @@ class ASRAttacks(object):
                     return wer_count/len(audios), sib_saver
         else:
             for i in range(len(audios)):
-                prediction = INFER(torch.from_numpy(audios[i]))
+                prediction = self.INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i].split(" ")
                 prediction = list(filter(lambda x: x!='', prediction.split("|")))
                 if len(prediction) == len(reference):
