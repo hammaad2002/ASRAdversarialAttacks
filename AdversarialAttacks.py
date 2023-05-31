@@ -1376,6 +1376,42 @@ class ASRAttacks(object):
         theta_array = np.array(theta)
 
         return theta_array, original_max_psd
+
+    def _wer(self, reference, prediction) -> Tuple[int, Tuple[int, int, int]]:
+
+        '''
+        This method only for use internally that's why I have used underscore before the method.
+        This method calculates word error rate of of a single example provided it is given equal length transcription.
+        If transcriptions are not equal, make them equal by appending <eps> in which ever transcription who's length is smaller than the other.
+
+        INPUT ARGUMENTS:
+
+        reference     : Ground Truth. Ex ['My', 'name', 'is', 'Bond']
+                        Type: List
+
+        prediction    : Model's output transcription. Ex ['My', 'name', 'is', 'Band']
+                        Type: List
+
+        RETURNS:
+
+        Tuple[int, Tuple[int, int, int]] : single transcription's WER along with another tuple containing information of (Substitution, Insertion, Deletion)
+        '''
+
+        correct = 0
+        substitution = 0
+        insertion = 0
+        deletion = 0
+        for i in range(len(reference)):
+            if prediction[i] == reference[i]:
+                correct +=1
+            elif prediction[i] != reference[i] and prediction[i] != '<eps>' and reference[i] != '<eps>':
+                substitution+=1
+            elif prediction[i] == '<eps>':
+                deletion+=1
+            elif prediction[i] != reference[i] and reference[i] == '<eps>':
+                insertion+=1
+        wer = (substitution + insertion + deletion) / (correct + substitution + deletion + insertion)
+        return wer, (substitution, insertion, deletion)
     
     def INFER(self, input_: torch.Tensor) -> str:
         
@@ -1400,7 +1436,7 @@ class ASRAttacks(object):
         indices = [i for i in encodedTrans if i != blank]
         return "".join([self.labels[i] for i in indices])
 
-    def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> int:
+    def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> Tuple[int, List[Tuple[int, int ,int]]]:
 
         '''
         Computes WER of a single audio or batch of audios
@@ -1408,56 +1444,64 @@ class ASRAttacks(object):
         INPUT ARGUMENTS:
 
         ground_truth : Original transcription or reference transcription.
-                       Type: List[str]
+                        Type: List[str]
 
         audios       : Audios who's transcription from model will be used.
-                       Type: List[np.ndarray]
+                        Type: List[np.ndarray]
 
         targeted     : if the WER should be computed according to the way for
-                       targeted attack or not.
+                        targeted attack or not.
 
         RETURNS:
 
-        int         : average WER of given audio/audios
+        Tuple[int, List[Tuple[int, int ,int]]] : average WER of given audio/audios and List of Tuple which contains information of (Substitution, Insertion, and Deletion) of every audio separately passed in a batch
         '''
+
         wer_count = 0
+        sib_saver = []
         if targeted == True:
             for i in range(len(audios)):
-                prediction = self.INFER(torch.from_numpy(audios[i]))
+                prediction = INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i].split(" ")
                 prediction = list(filter(lambda x: x!='', prediction.split("|")))
                 if len(prediction) == len(reference):
-                    word_error_rate = max(1 - wer(reference, prediction), 0)
+                    word_error_rate = max(1 - self._wer(reference, prediction)[0], 0)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 elif len(prediction) > len(reference):
                     diff = len(prediction) - len(reference)
                     for i in range(diff):
                         reference.append("<eps>")
-                    word_error_rate = max(1 - wer(reference, prediction), 0)
+                    word_error_rate = max(1 - self._wer(reference, prediction)[0], 0)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 else:
                     diff = len(reference) - len(prediction)
                     for i in range(diff):
                         prediction.append("<eps>")
-                    word_error_rate = max(1 - wer(reference, prediction), 0)
+                    word_error_rate = max(1 - self._wer(reference, prediction)[0], 0)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
-                    return wer_count/len(audios)
+                    return wer_count/len(audios), sib_saver
         else:
             for i in range(len(audios)):
-                prediction = self.INFER(torch.from_numpy(audios[i]))
+                prediction = INFER(torch.from_numpy(audios[i]))
                 reference  = ground_truth[i].split(" ")
                 prediction = list(filter(lambda x: x!='', prediction.split("|")))
                 if len(prediction) == len(reference):
-                    word_error_rate = min(wer(reference, prediction), 1)
+                    word_error_rate = min(self._wer(reference, prediction)[0], 1)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 elif len(prediction) > len(reference):
                     diff = len(prediction) - len(reference)
                     for i in range(diff):
                         reference.append("<eps>")
-                    word_error_rate = min(wer(reference, prediction), 1)
+                    word_error_rate = min(self._wer(reference, prediction)[0], 1)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 else:
                     diff = len(reference) - len(prediction)
                     for i in range(diff):
                         prediction.append("<eps>")
-                    word_error_rate = min(wer(reference, prediction), 1)
+                    word_error_rate = min(self._wer(reference, prediction)[0], 1)
+                    sib_saver.append(self._wer(reference, prediction)[1])
                 wer_count += word_error_rate
                 if i == len(audios) - 1:
-                    return wer_count/len(audios)
+                    return wer_count/len(audios), sib_saver
