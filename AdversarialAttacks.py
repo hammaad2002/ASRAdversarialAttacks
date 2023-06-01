@@ -1483,13 +1483,13 @@ class ASRAttacks(object):
                     sib_saver.append(self._wer(reference, prediction)[1])
                 elif len(prediction) > len(reference):
                     diff = len(prediction) - len(reference)
-                    for i in range(diff):
+                    for _ in range(diff):
                         reference.append("<eps>")
                     word_error_rate = max(1 - self._wer(reference, prediction)[0], 0)
                     sib_saver.append(self._wer(reference, prediction)[1])
                 else:
                     diff = len(reference) - len(prediction)
-                    for i in range(diff):
+                    for _ in range(diff):
                         prediction.append("<eps>")
                     word_error_rate = max(1 - self._wer(reference, prediction)[0], 0)
                     sib_saver.append(self._wer(reference, prediction)[1])
@@ -1506,13 +1506,13 @@ class ASRAttacks(object):
                     sib_saver.append(self._wer(reference, prediction)[1])
                 elif len(prediction) > len(reference):
                     diff = len(prediction) - len(reference)
-                    for i in range(diff):
+                    for _ in range(diff):
                         reference.append("<eps>")
                     word_error_rate = min(self._wer(reference, prediction)[0], 1)
                     sib_saver.append(self._wer(reference, prediction)[1])
                 else:
                     diff = len(reference) - len(prediction)
-                    for i in range(diff):
+                    for _ in range(diff):
                         prediction.append("<eps>")
                     word_error_rate = min(self._wer(reference, prediction)[0], 1)
                     sib_saver.append(self._wer(reference, prediction)[1])
