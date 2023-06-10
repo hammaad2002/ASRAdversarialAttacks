@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import scipy
 from functools import reduce
-from jiwer import wer
 
 class ASRAttacks(object):
     '''
