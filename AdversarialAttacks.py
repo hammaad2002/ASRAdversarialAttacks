@@ -1243,15 +1243,15 @@ class ASRAttacks(object):
         window_fn = torch.hann_window  # type: ignore
 
         # Return STFT of delta
-        delta_stft = torch.stft(
+        delta_stft = torch.view_as_real(torch.stft(
           delta,
           n_fft=2048,
           hop_length=512,
           win_length=2048,
           center=False,
           window=window_fn(2048).to(self.device),
-          return_complex=False,
-        ).to(self.device)
+          return_complex=True,
+        )).to(self.device)
 
         # Take abs of complex STFT results
         transformed_delta = torch.sqrt(torch.sum(torch.square(delta_stft), -1))
