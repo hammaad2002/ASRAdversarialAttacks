@@ -293,24 +293,24 @@ class ASRAttacks(object):
 
                     # Computing WER while also making sure length of both strings is same
                     # This will also early stop the attack if we reach out target transcription
-                    # before the completion of all iteration because further iteration will further
+                    # before the completion of all iterations because further iterations will further
                     # increase noise in the original audio leading to bad/low SNR
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             return input_.detach().numpy()
                     elif len(string1) > len(string2):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             return input_.detach().numpy()
                     else:
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             return input_.detach().numpy()
                 
@@ -378,21 +378,21 @@ class ASRAttacks(object):
                     # before the completion of all iteration because further iteration will further
                     # increase noise in the original audio leading to bad/low SNR
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             return input_.detach().numpy()
                     elif len(string1) > len(string2):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             return input_.detach().numpy()
                     else:
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             return input_.detach().numpy()
                 
@@ -510,7 +510,7 @@ class ASRAttacks(object):
                     # before the completion of all iteration because further iteration will further
                     # increase noise in the original audio leading to bad/low SNR
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -518,7 +518,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -526,7 +526,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -587,7 +587,7 @@ class ASRAttacks(object):
                     # before the completion of all iteration because further iteration will further
                     # increase noise in the original audio leading to bad/low SNR
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -595,7 +595,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -603,7 +603,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because untargeted Attack is performed successfully !")
                             adv_example = input_ + delta
                             return adv_example.detach().cpu().numpy()
@@ -620,7 +620,7 @@ class ASRAttacks(object):
            num_iter: int = 1000, decrease_factor_eps: float = 1,
            num_iter_decrease_eps: int = 10, optimizer: str = None, 
            nested: bool = True, early_stop: bool = True, search_eps: bool = False,
-           targeted: bool = False) -> np.ndarray:
+           targeted: bool = False, internal_call = False) -> np.ndarray:
 
         '''
         Implements the Carlini and Wagner attack, the strongest white box 
@@ -678,6 +678,9 @@ class ASRAttacks(object):
                         CAUTION:
                         Please make to pass your targetted 
                         transcription also in this case).
+
+        internal_call : If the CW is being called internally by another attack.
+                        Type: bool
                         
         RETURNS:
         
@@ -716,9 +719,13 @@ class ASRAttacks(object):
         # Checking if the user wants to run this code in for loop or not
         if nested:
             leave = False
+            descrip = None
+            if internal_call:
+              descrip = "*"*5+"Attack Stage 1"+"*"*5
 
         else:
             leave = True
+            descrip = None
 
         if targeted:
 
@@ -731,7 +738,7 @@ class ASRAttacks(object):
             # Convert the target transcription to a PyTorch tensor
             target_tensor = torch.from_numpy(np.array(encoded_transcription)).to(self.device).long()
             
-            for i in tqdm(range(num_iter), colour="red", leave = leave):
+            for i in tqdm(range(num_iter), colour="red", leave = leave, desc = descrip):
 
                 # Zero the gradients
                 optimizer.zero_grad()
@@ -778,7 +785,7 @@ class ASRAttacks(object):
                     # This will also early stop the attack if we reach our target transcription
                     # before the completion of all iteration
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -787,7 +794,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -796,7 +803,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -804,7 +811,7 @@ class ASRAttacks(object):
                 elif search_eps:
                     # Computing WER while also making sure length of both strings is same
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -817,7 +824,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -830,7 +837,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 0:
+                        if self._wer(string1, string2)[0] == 0:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -904,7 +911,7 @@ class ASRAttacks(object):
                     # This will also early stop the attack if we reach our target transcription
                     # before the completion of all iteration
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -913,7 +920,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -922,7 +929,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             print("Breaking for loop because targeted Attack is performed successfully !")
                             adv_example = input_audio
                             return adv_example.detach().cpu().numpy()
@@ -930,7 +937,7 @@ class ASRAttacks(object):
                 elif search_eps:
                     # Computing WER while also making sure length of both strings is same
                     if len(string1) == len(string2):
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -943,7 +950,7 @@ class ASRAttacks(object):
                         diff = len(string1) - len(string2)
                         for i in range(diff):
                             string2.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -956,7 +963,7 @@ class ASRAttacks(object):
                         diff = len(string2) - len(string1)
                         for i in range(diff):
                             string1.append("<eps>")
-                        if wer(string1, string2) == 1:
+                        if self._wer(string1, string2)[0] == 1:
                             num_successful_attacks += 1
                             if num_successful_attacks >= num_iter_decrease_eps:
                                 successful_attack = True
@@ -1055,11 +1062,11 @@ class ASRAttacks(object):
         else:
             leave = True
             
-        print("*"*5,"Attack Stage 1","*"*5) #stage 1 of Imperceptible ASR attack
+        #stage 1 of Imperceptible ASR attack
         stageOneAud =  self.CW_ATTACK(input_ , target = target, epsilon = epsilon, c = c, learning_rate = learning_rate1,
                            num_iter = num_iter1, decrease_factor_eps = decrease_factor_eps, 
                            num_iter_decrease_eps = num_iter_decrease_eps, optimizer = optimizer1, 
-                           nested = True, early_stop = early_stop_cw, search_eps = search_eps_cw, targeted = True)
+                           nested = True, early_stop = early_stop_cw, search_eps = search_eps_cw, targeted = True, internal_call = True)
 
         
         # Convert the input audio to a PyTorch tensor
@@ -1100,8 +1107,8 @@ class ASRAttacks(object):
         losss = []
         examplee = []
         
-        print("*"*5,"Attack Stage 2","*"*5) #stage 2 of Imperceptible ASR attack
-        for i in tqdm(range(num_iter2), colour = 'red', leave = leave):
+        #stage 2 of Imperceptible ASR attack
+        for i in tqdm(range(num_iter2), colour = 'red', leave = leave, desc="*"*5+"Attack Stage 2"+"*"*5):
                       
             # Zero the gradients
             optimizer.zero_grad()
@@ -1166,41 +1173,41 @@ class ASRAttacks(object):
             if i % 20 == 0: # if every 20 iterations the transcription matches then alpha value will be increased
         
                 if len(string1) == len(string2):
-                    if wer(string1, string2) == 0:
+                    if self._wer(string1, string2)[0] == 0:
                         alpha = alpha * 1.2
 
                 elif len(string1) > len(string2):
                     diff = len(string1) - len(string2)
                     for i in range(diff):
                         string2.append("<eps>")
-                    if wer(string1, string2) == 0:
+                    if self._wer(string1, string2)[0] == 0:
                         alpha = alpha * 1.2
 
                 else:
                     diff = len(string2) - len(string1)
                     for i in range(diff):
                         string1.append("<eps>")
-                    if wer(string1, string2) == 0:
+                    if self._wer(string1, string2)[0] == 0:
                         alpha = alpha * 1.2
             
             if i % 50 == 0: # if every 50 iterations the transcription does not match then alpha value will be decreased
         
                 if len(string1) == len(string2):
-                    if wer(string1, string2) != 0:
+                    if self._wer(string1, string2)[0] != 0:
                         alpha = alpha * 0.8
   
                 elif len(string1) > len(string2):
                     diff = len(string1) - len(string2)
                     for i in range(diff):
                         string2.append("<eps>")
-                    if wer(string1, string2) != 0:
+                    if self._wer(string1, string2)[0] != 0:
                         alpha = alpha * 0.8
 
                 else:
                     diff = len(string2) - len(string1)
                     for i in range(diff):
                         string1.append("<eps>")
-                    if wer(string1, string2) != 0:
+                    if self._wer(string1, string2)[0] != 0:
                         alpha = alpha * 0.8
         
         #return the example with the lowest loss among the stored examples
