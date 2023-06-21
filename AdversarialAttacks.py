@@ -18,21 +18,21 @@ class ASRAttacks(object):
     2) Basic Iterative Moment     (BIM)
     3) Projected Gradient Descent (PGD) 
     4) Carlini and Wagner Attack  (CW)
-    5) Imperceptible ASR Attack   (I-ASR)
+    5) Imperceptible ASR Attack   (IMP-ASR)
     '''
-    def __init__(self, model, device, labels: List[str]):
+    def __init__(self, model: str, device):
         '''
         Creates an instance of the class "ASRAttacks".
         
         INPUT ARGUMENTS: 
         
-        model  : The model on which the attack is supposed to be performed.
+        model  : Model's name which is shown on huggingface's website
         device : Either 'cpu' if we have only CPU or 'cuda' if we have GPU
-        labels : Label/Dictionary of the model.
         '''
-        self.model = model
+        self.model = AutoModelForCTC.from_pretrained(model).to(device)
+        self.processor = AutoProcessor.from_pretrained(model)
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.device = device
-        self.labels = labels
 
     def _encode_transcription(self, transcription: List[str]) -> List[str]: #in future add dictionary input over here
         '''
@@ -45,22 +45,16 @@ class ASRAttacks(object):
                            Please make sure these characters are also present in the 
                            dictionary of the model also.
         '''
-        # Define the dictionary
-        dictionary = {'-': 0, '|': 1, 'E': 2, 'T': 3, 'A': 4, 
-                      'O': 5, 'N': 6, 'I': 7, 'H': 8, 'S': 9, 
-                      'R': 10, 'D': 11, 'L': 12, 'U': 13, 'M': 14, 
-                      'W': 15, 'C': 16, 'F': 17, 'G': 18, 'Y': 19, 
-                      'P': 20, 'B': 21, 'V': 22, 'K': 23, "'": 24, 
-                      'X': 25, 'J': 26, 'Q': 27, 'Z': 28} #wav2vec uses this dictionary
+        # Making sure the transcription matches our model's token also
+        if transcription.isupper():
+            transcription = transcription
+        elif transcription .islower():
+            transcription = transcription.upper()
+        else: # useless condition
+            transcription = transcription.upper()
 
-        # Convert transcription string to list of characters
-        chars = list(transcription)
-
-        # Encode each character using the dictionary
-        encoded_chars = [dictionary[char] for char in chars]
-
-        # Concatenate the encoded characters to form the final encoded transcription
-        encoded_transcription = torch.tensor(encoded_chars)
+        # Encoding our transcription with the corresponding tokens
+        encoded_transcription = self.tokenizer.encode(transcription, return_tensors ="pt")
 
         # Returning the encoded transcription
         return encoded_transcription
@@ -106,7 +100,7 @@ class ASRAttacks(object):
         input_.requires_grad = True
 
         # Forward Pass
-        output, _ = self.model(input_.to(self.device))
+        output = self.model(input_.to(self.device)).logits
 
         # Softmax Activation for computing logits
         output = F.log_softmax(output, dim=-1)
@@ -256,7 +250,7 @@ class ASRAttacks(object):
             for i in tqdm(range(num_iter), colour="red", leave = leave):
    
                 # Forward pass
-                output, _ = self.model(input_.to(self.device))
+                output = self.model(input_.to(self.device)).logits
 
                 # Softmax Activation for computing logits
                 output = F.log_softmax(output, dim=-1)
@@ -334,7 +328,7 @@ class ASRAttacks(object):
                 encoded_transcription = self._encode_transcription(untarget)
                 
                 # Forward pass
-                output, _ = self.model(input_.to(self.device))
+                output = self.model(input_.to(self.device)).logits
 
                 # Softmax Activation for computing logits
                 output = F.log_softmax(output, dim=-1)
@@ -1448,13 +1442,15 @@ class ASRAttacks(object):
         str           : Model's transcription from the given audio.
         '''
 
-        # Inference method of the model
-        blank = 0
-        output, _ = self.model(input_.to(self.device))
-        encodedTrans = torch.argmax(output[0], axis=-1)
-        encodedTrans = torch.unique_consecutive(encodedTrans, dim=-1)
-        indices = [i for i in encodedTrans if i != blank]
-        return "".join([self.labels[i] for i in indices])
+        # Inference from the model
+        self.model.eval()
+        with torch.no_grad():
+            logits = self.model(input_.to(device)).logits
+            logits = F.log_softmax(logits, dim=-1)
+
+        predicted_ids = torch.argmax(logits, dim=-1)
+        transcription = self.processor.batch_decode
+        return transcription[0]
 
     def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> Tuple[int, List[Tuple[int, int ,int]]]:
 
