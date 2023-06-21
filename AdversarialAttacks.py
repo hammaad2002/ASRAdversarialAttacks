@@ -1450,7 +1450,7 @@ class ASRAttacks(object):
             logits = F.log_softmax(logits, dim=-1)
 
         predicted_ids = torch.argmax(logits, dim=-1)
-        transcription = self.processor.batch_decode
+        transcription = self.processor.batch_decode(predicted_ids)
         return transcription[0]
 
     def wer_compute(self, ground_truth: List[str], audios: List[np.ndarray], targeted:bool = False)-> Tuple[int, List[Tuple[int, int ,int]]]:
