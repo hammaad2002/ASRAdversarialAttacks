@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import scipy
 from functools import reduce
+from transformers import AutoProcessor, AutoModelForCTC, AutoTokenizer
 
 class ASRAttacks(object):
     '''
