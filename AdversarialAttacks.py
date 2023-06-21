@@ -1446,7 +1446,7 @@ class ASRAttacks(object):
         # Inference from the model
         self.model.eval()
         with torch.no_grad():
-            logits = self.model(input_.to(device)).logits
+            logits = self.model(input_.to(self.device)).logits
             logits = F.log_softmax(logits, dim=-1)
 
         predicted_ids = torch.argmax(logits, dim=-1)
