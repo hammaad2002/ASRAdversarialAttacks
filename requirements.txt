@@ -1,7 +1,7 @@
 pytorch-lightning
 omegaconf
 python-levenshtein
-hydra-core --upgrade
+hydra-core
 wget
 git+https://github.com/pytorch/hydra-torch
 hydra-core
