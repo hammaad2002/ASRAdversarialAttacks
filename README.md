@@ -1,6 +1,6 @@
 # ASR-Adversarial-Attacks
 
-Welcome to the ASR Adversarial Attacks repository! This is a collection of adversarial attacks for Automatic Speech Recognition (ASR) systems. The attacks in this 'main' branch are specifically designed for the wav2vec2 model from the Torchaudio hub. Additionally, I have implemented a separate branch called 'huggingface' for the Hugging Face version of this repository. This is for those who want to perform these attacks on the ASR models available on their platform.
+Welcome to the ASR Adversarial Attacks repository! This is a collection of adversarial attacks for Automatic Speech Recognition (ASR) systems. The attacks in this 'main' branch are specifically designed for the wav2vec2 model from the Torchaudio hub. Additionally, I have implemented a separate branch called 'huggingface' for the Hugging Face version of this repository. This is for those who want to perform these attacks on the ASR models available on their platform. I am also working on adding deepspeech model too but it is done yet. For now it can only support FGSM and BIM attacks.
 
 This repository contains a collection of adversarial attacks for Automatic Speech Recognition (ASR) systems. The repository includes a file that implements several popular attack methods, including the Fast Gradient Sign Method (FGSM), Basic Iterative Method (BIM), Projected Gradient Descent (PGD), Carlini and Wagner (CW), and Imperceptible CW.
 
