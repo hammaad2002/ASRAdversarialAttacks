@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Tools
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Models and audio artifacts
+*.pt
+*.pth
+*.onnx
+*.wav
+*.flac
+*.mp3
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
