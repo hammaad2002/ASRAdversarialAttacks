@@ -1,0 +1,15 @@
+ASR Adversarial Attacks
+Copyright 2023-2026 Hammad Ali Khan
+
+This product includes software derived from the IBM Adversarial Robustness
+Toolbox (ART), licensed under the Apache License, Version 2.0:
+
+  https://github.com/Trusted-AI/adversarial-robustness-toolbox
+
+Specifically, the psychoacoustic masking-threshold and PSD transform used by
+the imperceptible ASR attack follow ART's PyTorch Imperceptible ASR
+implementation:
+
+  art/attacks/evasion/imperceptible_asr/imperceptible_asr_pytorch.py
+
+ART is Copyright IBM Corporation and contributors.
