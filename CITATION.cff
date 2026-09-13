@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: ASR Adversarial Attacks
+version: 0.2.0
+date-released: "2026-09-11"
+license: Apache-2.0
+repository-code: https://github.com/hammaad2002/ASRAdversarialAttacks
+authors:
+  - family-names: Khan
+    given-names: Hammad Ali
