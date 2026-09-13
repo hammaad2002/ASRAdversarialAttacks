@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asr-attacks"
+version = "0.2.0"
+description = "White-box adversarial attacks for CTC automatic speech recognition models."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Hammad Ali Khan" }]
+keywords = ["asr", "adversarial-attacks", "speech", "robustness", "wav2vec2"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.22",
+    "torch>=2.0",
+    "tqdm>=4.64",
+    "jiwer>=3.0",
+    "librosa>=0.10",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+hf = ["transformers>=4.30"]
+wav2vec2 = ["torchaudio>=2.0"]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.6",
+    "pre-commit>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/hammaad2002/ASRAdversarialAttacks"
+Issues = "https://github.com/hammaad2002/ASRAdversarialAttacks/issues"
+Source = "https://github.com/hammaad2002/ASRAdversarialAttacks"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+asr_attacks = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"AdversarialAttacks.py" = ["F401"]
