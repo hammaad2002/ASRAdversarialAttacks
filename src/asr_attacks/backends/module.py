@@ -12,6 +12,7 @@ class CTCModuleBackend(ASRBackend):
 
     ``labels`` must be the model's vocabulary in index order (``bundle.get_labels()``
     for torchaudio wav2vec2). Encoding uses this vocabulary; it is not hardcoded.
+    Logits must be ``(batch, time, vocab)`` with ``vocab == len(labels)``.
     """
 
     def __init__(
@@ -49,6 +50,13 @@ class CTCModuleBackend(ASRBackend):
             raise ValueError(
                 f"Model logits must be (batch, time, vocab), got {tuple(output.shape)}"
             )
+        vocab = output.shape[-1]
+        if vocab != len(self.labels):
+            raise ValueError(
+                "Model logits last dimension must equal len(labels) "
+                f"({vocab} != {len(self.labels)}). "
+                "Pass the vocabulary in index order, one label per class."
+            )
         return output
 
     def encode(self, transcript: str | list[str]) -> torch.Tensor:
@@ -75,6 +83,16 @@ class CTCModuleBackend(ASRBackend):
         predicted = torch.unique_consecutive(predicted)
         chars = [self.labels[int(index)] for index in predicted if int(index) != self.blank_id]
         return "".join(chars)
+
+    def silence_ids(self) -> list[int]:
+        ids = [self.blank_id]
+        for token in ("|", " "):
+            if token in self._char_to_id:
+                token_id = self._char_to_id[token]
+                if token_id not in ids:
+                    ids.append(token_id)
+                break
+        return ids
 
     def decode_display(self, audio: torch.Tensor) -> str:
         return display_text(self.decode(audio))

@@ -22,3 +22,7 @@ class ASRBackend(ABC):
     @abstractmethod
     def decode(self, audio: torch.Tensor) -> str:
         """Greedy CTC decode of ``audio`` without tracking gradients."""
+
+    def silence_ids(self) -> list[int]:
+        """Token ids treated as silence for the empty-target CW attack (Sec. III-F)."""
+        return [self.blank_id]
