@@ -1,8 +1,37 @@
 from __future__ import annotations
 
 import jiwer
+import numpy as np
+import torch
 
 from asr_attacks.text import display_text
+
+
+def db_distortion(
+    original: torch.Tensor | np.ndarray,
+    adversarial: torch.Tensor | np.ndarray,
+) -> float:
+    """Relative perturbation loudness used by Carlini & Wagner (audio), in dB.
+
+    ``20 * log10(max|delta|) - 20 * log10(max|x|)``.
+    """
+    x = np.asarray(
+        original.detach().cpu().numpy() if isinstance(original, torch.Tensor) else original,
+        dtype=np.float64,
+    )
+    adv = np.asarray(
+        adversarial.detach().cpu().numpy()
+        if isinstance(adversarial, torch.Tensor)
+        else adversarial,
+        dtype=np.float64,
+    )
+    max_x = float(np.max(np.abs(x)))
+    max_delta = float(np.max(np.abs(adv - x)))
+    if max_x <= 0.0:
+        raise ValueError("original waveform must have non-zero peak amplitude")
+    if max_delta <= 0.0:
+        return float("-inf")
+    return float(20.0 * np.log10(max_delta) - 20.0 * np.log10(max_x))
 
 
 def word_error_rate(reference: str, hypothesis: str) -> float:

@@ -65,3 +65,12 @@ class HuggingFaceCTCBackend(ASRBackend):
         logits = self.logits(audio)
         predicted = torch.argmax(logits, dim=-1)
         return self.processor.batch_decode(predicted)[0]
+
+    def silence_ids(self) -> list[int]:
+        ids = [self.blank_id]
+        delim = getattr(self.tokenizer, "word_delimiter_token_id", None)
+        if delim is not None:
+            token_id = int(delim)
+            if token_id not in ids:
+                ids.append(token_id)
+        return ids
