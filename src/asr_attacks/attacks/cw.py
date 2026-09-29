@@ -83,9 +83,7 @@ def _margin_frame_loss(
     # logits: (1, T, V); alignment / weights: (T,)
     time = logits.shape[1]
     if alignment.numel() != time:
-        raise ValueError(
-            f"Alignment length {alignment.numel()} does not match logit frames {time}"
-        )
+        raise ValueError(f"Alignment length {alignment.numel()} does not match logit frames {time}")
     rows = torch.arange(time, device=logits.device)
     correct = logits[0, rows, alignment]
     wrong = logits[0].clone()

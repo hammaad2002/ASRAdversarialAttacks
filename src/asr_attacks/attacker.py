@@ -20,6 +20,7 @@ from asr_attacks.attacks.fgsm import fgsm
 from asr_attacks.attacks.iterative import bim, pgd
 from asr_attacks.backends.base import ASRBackend
 from asr_attacks.metrics import alignment_counts, word_error_rate
+from asr_attacks.rooms import RoomSimulator
 from asr_attacks.tensors import prepare_audio
 
 
@@ -307,7 +308,7 @@ class ASRAttacker:
         targeted: bool = True,
         label: str | list[str] | None = None,
         mode: str = "imperceptible",
-        rooms=None,
+        rooms: RoomSimulator | None = None,
         robust_delta: float = _ROBUST_DELTA,
         num_iter_r1: int = 2000,
         num_iter_r2: int = 4000,
