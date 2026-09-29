@@ -30,7 +30,12 @@ class ASRAttacks:
         labels: Vocabulary in index order (for example ``bundle.get_labels()``).
     """
 
-    def __init__(self, model, device, labels: list[str] | tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        device: torch.device | str,
+        labels: list[str] | tuple[str, ...],
+    ) -> None:
         self.model = model
         self.device = device
         self.labels = labels

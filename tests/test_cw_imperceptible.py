@@ -261,9 +261,7 @@ def test_room_simulator_from_rirs_length_and_identity():
 
     # Delta RIR via the low-level helper.
     delta = torch.tensor([1.0, 0.0, 0.0])
-    torch.testing.assert_close(
-        _fft_convolve_same_length(signal, delta), signal, atol=1e-6, rtol=0
-    )
+    torch.testing.assert_close(_fft_convolve_same_length(signal, delta), signal, atol=1e-6, rtol=0)
 
 
 def test_robust_modes_with_user_rirs(backend, audio, patch_psycho):

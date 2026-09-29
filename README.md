@@ -98,6 +98,7 @@ Alternatively, wrap a CTC module with `ASRAttacks`:
 
 ```python
 from asr_attacks import ASRAttacks
+
 attacks = ASRAttacks(model, "cpu", list(bundle.get_labels()))
 adv = attacks.FGSM_ATTACK(waveform, epsilon=0.01, targeted=False)
 ```
