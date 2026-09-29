@@ -7,10 +7,26 @@ from asr_attacks.tensors import prepare_audio
 from asr_attacks.text import as_transcript
 
 
+def zero_mean_unit_variance(audio: torch.Tensor) -> torch.Tensor:
+    """Per-utterance normalization used by ``Wav2Vec2FeatureExtractor(do_normalize=True)``.
+
+    Matches ``(x - x.mean()) / np.sqrt(x.var() + 1e-7)`` (population variance), but stays
+    differentiable so the attack optimizes the loss of the audio the model really sees.
+    """
+    mean = audio.mean(dim=-1, keepdim=True)
+    variance = audio.var(dim=-1, correction=0, keepdim=True)
+    return (audio - mean) / torch.sqrt(variance + 1e-7)
+
+
 class HuggingFaceCTCBackend(ASRBackend):
     """Wrap a Hugging Face ``AutoModelForCTC`` checkpoint.
 
     Install the optional extra: ``pip install asr-attacks[hf]``.
+
+    Most wav2vec2-family checkpoints expect zero-mean, unit-variance input. When the
+    processor's feature extractor has ``do_normalize=True`` the backend applies that
+    normalization inside :meth:`logits` (in autograd), so attacks perturb the raw
+    waveform and optimize the loss of the normalized audio the model actually receives.
     """
 
     def __init__(
@@ -48,8 +64,14 @@ class HuggingFaceCTCBackend(ASRBackend):
             for parameter in self.model.parameters():
                 parameter.requires_grad_(False)
 
+    def _normalizes_input(self) -> bool:
+        extractor = getattr(self.processor, "feature_extractor", self.processor)
+        return bool(getattr(extractor, "do_normalize", False))
+
     def logits(self, audio: torch.Tensor) -> torch.Tensor:
         prepared = prepare_audio(audio, self.device)
+        if self._normalizes_input():
+            prepared = zero_mean_unit_variance(prepared)
         return self.model(prepared).logits
 
     def encode(self, transcript: str | list[str]) -> torch.Tensor:
