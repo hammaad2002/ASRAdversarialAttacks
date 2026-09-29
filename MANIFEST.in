@@ -1,0 +1,10 @@
+include CHANGELOG.md
+include CITATION.cff
+include LICENSE
+include NOTICE
+include README.md
+include mkdocs.yml
+graft docs
+graft tests
+global-exclude *.pyc
+global-exclude __pycache__
