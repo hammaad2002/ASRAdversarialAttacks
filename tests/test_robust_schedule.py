@@ -9,25 +9,10 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
 
 from asr_attacks.attacks.imperceptible import imperceptible
-from asr_attacks.rooms import RoomSimulator
 
 M_ROOMS = 10  # fixed by the robust stages (Qin et al. sample M = 10 rooms per step)
-
-
-@pytest.fixture
-def rooms() -> RoomSimulator:
-    return RoomSimulator.from_rirs(
-        [np.array([1.0]), np.array([0.9, 0.1]), np.array([0.8, 0.15, 0.05])]
-    )
-
-
-@pytest.fixture
-def long_audio() -> torch.Tensor:
-    torch.manual_seed(2)
-    return torch.randn(1, 3 * 2048) * 0.05  # long enough for the real masking window
 
 
 class DecodeCounter:

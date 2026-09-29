@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import torch
 
 from asr_attacks.backends.module import CTCModuleBackend
+from asr_attacks.rooms import RoomSimulator
 from tests.helpers import LABELS, TinyCTC
 
 
@@ -26,3 +28,18 @@ def backend() -> CTCModuleBackend:
 def audio() -> torch.Tensor:
     torch.manual_seed(1)
     return torch.randn(1, 1600) * 0.05
+
+
+@pytest.fixture
+def long_audio() -> torch.Tensor:
+    """Three masking windows (2048 samples each), so the real psychoacoustic code can run."""
+    torch.manual_seed(2)
+    return torch.randn(1, 3 * 2048) * 0.05
+
+
+@pytest.fixture
+def rooms() -> RoomSimulator:
+    """Three user-supplied impulse responses: no pyroomacoustics needed."""
+    return RoomSimulator.from_rirs(
+        [np.array([1.0]), np.array([0.9, 0.1]), np.array([0.8, 0.15, 0.05])]
+    )
