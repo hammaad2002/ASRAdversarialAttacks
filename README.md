@@ -1,35 +1,49 @@
 # ASR Adversarial Attacks
 
-White-box CTC attacks for evaluating the robustness of automatic speech recognition models you own or have permission to test.
+[![CI](https://github.com/hammaad2002/ASRAdversarialAttacks/actions/workflows/ci.yml/badge.svg)](https://github.com/hammaad2002/ASRAdversarialAttacks/actions/workflows/ci.yml)
+[![Docs](https://github.com/hammaad2002/ASRAdversarialAttacks/actions/workflows/docs.yml/badge.svg)](https://hammaad2002.github.io/ASRAdversarialAttacks/)
+[![PyPI](https://img.shields.io/pypi/v/asr-attacks)](https://pypi.org/project/asr-attacks/)
+[![Python](https://img.shields.io/pypi/pyversions/asr-attacks)](https://pypi.org/project/asr-attacks/)
+[![License](https://img.shields.io/pypi/l/asr-attacks)](LICENSE)
 
-The original 2023 notebook dump is preserved on the [`working-main`](https://github.com/hammaad2002/ASRAdversarialAttacks/tree/working-main) branch. This `main` branch is the packaged library.
+This package tests an ASR (speech-to-text) model against well-known white-box adversarial attacks.
 
-## Supported attacks
-
-| Attack | Paper | Notes |
-| --- | --- | --- |
-| FGSM | [Goodfellow et al., 2015](https://arxiv.org/abs/1412.6572) | Single-step L-inf sign gradient |
-| BIM | [Kurakin et al., 2017](https://arxiv.org/abs/1607.02533) | Iterative FGSM with L-inf projection |
-| PGD | [Madry et al., 2018](https://arxiv.org/abs/1706.06083) | BIM with random start inside the L-inf ball |
-| CW-style | [Carlini & Wagner, 2018](https://arxiv.org/abs/1801.01944) | CTC + L2 inside an L-inf box. **Not** paper-faithful C&W (no tanh change of variables, no binary search on `c`) |
-| Imperceptible | [Qin et al., 2019](https://arxiv.org/abs/1903.10346) | Two-stage attack; psychoacoustic stage follows IBM ART |
-
-Backends: torchaudio wav2vec2 (default) and optional Hugging Face CTC models via `pip install asr-attacks[hf]`.
+**Docs:** [hammaad2002.github.io/ASRAdversarialAttacks](https://hammaad2002.github.io/ASRAdversarialAttacks/)
 
 ## Install
 
 ```bash
-git clone https://github.com/hammaad2002/ASRAdversarialAttacks.git
-cd ASRAdversarialAttacks
-python -m pip install -e ".[dev]"
+pip install asr-attacks[wav2vec2]
 ```
 
-Python 3.10+ is required. For torchaudio wav2vec2 or Hugging Face models:
+Until the first PyPI release, install from Git:
 
 ```bash
-python -m pip install -e ".[dev,wav2vec2]"
-python -m pip install -e ".[dev,hf]"
+pip install "asr-attacks[wav2vec2] @ git+https://github.com/hammaad2002/ASRAdversarialAttacks.git"
 ```
+
+| Extra | For |
+| --- | --- |
+| `wav2vec2` | torchaudio wav2vec2 pipelines |
+| `hf` | Hugging Face CTC models |
+| `dev` | pytest, ruff, pre-commit |
+| `docs` | MkDocs |
+| `build` | `python -m build` and twine |
+
+Python 3.10+ and PyTorch 2.x are required. Install a CUDA/CPU torch wheel from [pytorch.org](https://pytorch.org/get-started/locally/) first if you need a specific build.
+
+## Supported attacks
+
+Every attack supports targeted and untargeted modes (untargeted: model prediction
+or `label=`). Untargeted Imperceptible is a package extension.
+
+| Attack | Paper | Notes |
+| --- | --- | --- |
+| FGSM | [Goodfellow et al., 2015](https://arxiv.org/abs/1412.6572) | Single-step; `norm` in `{inf, 2, 1}` |
+| BIM | [Kurakin et al., 2017](https://arxiv.org/abs/1607.02533) | Iterative; `norm` in `{inf, 2, 1}` |
+| PGD | [Madry et al., 2018](https://arxiv.org/abs/1706.06083) | Random start + optional `restarts`; `norm` in `{inf, 2, 1}` |
+| CW | [Carlini & Wagner, 2018](https://arxiv.org/abs/1801.01944) | Audio C&W Sec. III-B/C/F (`\|\|δ\|\|_2² + c·CTC`) |
+| Imperceptible | [Qin et al., 2019](https://arxiv.org/abs/1903.10346) | Offline by default; `mode="robust"` needs a `RoomSimulator` |
 
 ## Quickstart
 
@@ -50,6 +64,7 @@ assert sample_rate == 16000
 
 print("clean:", attacker.decode(waveform))
 adv = attacker.fgsm(waveform, epsilon=0.01, targeted=False)
+adv = attacker.fgsm(waveform, epsilon=0.01, label="THE CAT", norm=2, targeted=False)
 print("adversarial:", attacker.decode(adv))
 ```
 
@@ -69,6 +84,7 @@ adv = attacker.bim(
 mean_wer, counts = attacker.wer(["THE CAT SAT"], [adv])
 ```
 
+
 Hugging Face CTC:
 
 ```python
@@ -78,7 +94,7 @@ backend = HuggingFaceCTCBackend("facebook/wav2vec2-base-960h", device="cpu")
 attacker = ASRAttacker(backend)
 ```
 
-The old `ASRAttacks.FGSM_ATTACK` names still work:
+Alternatively, wrap a CTC module with `ASRAttacks`:
 
 ```python
 from asr_attacks import ASRAttacks
