@@ -343,7 +343,9 @@ class ASRAttacker:
             num_iter2: Stage-2 steps (default 4000).
             decrease_factor_eps: Bound shrink factor on success.
             num_iter_decrease_eps: Used as ``check_every`` when that is ``None``.
-            check_every: Bound-shrink / success-check interval.
+            check_every: Bound-shrink / success-check interval. In the robust modes it is how
+                often the M rooms are decoded (R1, R2, IR1, IR2); the gradient steps still
+                use M rooms every iteration.
             optimizer1: Stage-1 optimizer (``"sgd"`` reproduces Algorithm 1).
             optimizer2: Stage-2 optimizer (default ``"adam"``).
             nested: Hide progress bars when nested.
