@@ -10,7 +10,7 @@ need a specific wheel from [pytorch.org](https://pytorch.org/get-started/locally
 pip install asr-attacks
 ```
 
-## From GitHub (until PyPI is published)
+## From GitHub (development version)
 
 ```bash
 pip install "asr-attacks @ git+https://github.com/hammaad2002/ASRAdversarialAttacks.git"
@@ -22,7 +22,9 @@ pip install "asr-attacks @ git+https://github.com/hammaad2002/ASRAdversarialAtta
 | --- | --- | --- |
 | `wav2vec2` | `torchaudio` | Torchaudio wav2vec2 pipelines |
 | `hf` | `transformers` | Hugging Face `AutoModelForCTC` |
-| `dev` | pytest, ruff, pre-commit | Contributors |
+| `rooms` | `pyroomacoustics` | Generating the rooms of `RoomSimulator` for `mode="robust"` (`RoomSimulator.from_rirs` needs no extra) |
+| `benchmark` | torchaudio, huggingface_hub, pyarrow, soundfile | Running `scripts/benchmark_wav2vec2.py` |
+| `dev` | pytest, pytest-cov, mypy, ruff, pre-commit | Contributors |
 | `docs` | MkDocs, mkdocstrings | Building this site |
 | `build` | build, twine | Cutting a PyPI release |
 
