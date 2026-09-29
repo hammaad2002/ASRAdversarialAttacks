@@ -12,11 +12,16 @@ venv/
 
 # Tools
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
 .coverage
 htmlcov/
 .ipynb_checkpoints/
+site/
+
+# Reference papers (publisher-copyrighted; link the arXiv pages instead)
+ASR_Papers/
 
 # Models and audio artifacts
 *.pt
