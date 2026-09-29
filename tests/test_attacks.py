@@ -48,7 +48,7 @@ def test_pgd_random_start_stays_in_ball(backend, audio):
     assert np.abs(adversarial - audio.numpy()).max() <= epsilon + 1e-5
 
 
-def test_compat_class_matches_old_method_names(audio):
+def test_asr_attacks_fgsm_infer_and_wer(audio):
     model = TinyCTC()
     attacks = ASRAttacks(model, "cpu", LABELS)
     result = attacks.FGSM_ATTACK(audio, epsilon=0.02, targeted=False)
