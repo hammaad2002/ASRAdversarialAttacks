@@ -28,6 +28,7 @@ class ASRAttacks:
             ``(logits, extra)``.
         device: ``"cpu"``, ``"cuda"``, or a :class:`torch.device`.
         labels: Vocabulary in index order (for example ``bundle.get_labels()``).
+        verbose: Show progress bars and early-stop messages (``False`` is silent).
     """
 
     def __init__(
@@ -35,11 +36,14 @@ class ASRAttacks:
         model: torch.nn.Module,
         device: torch.device | str,
         labels: list[str] | tuple[str, ...],
+        verbose: bool = True,
     ) -> None:
         self.model = model
         self.device = device
         self.labels = labels
-        self._attacker = ASRAttacker(CTCModuleBackend(model, labels=labels, device=device))
+        self._attacker = ASRAttacker(
+            CTCModuleBackend(model, labels=labels, device=device), verbose=verbose
+        )
 
     def _encode_transcription(self, transcription):
         return self._attacker.backend.encode(transcription).detach().cpu()

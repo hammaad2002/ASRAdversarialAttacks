@@ -59,7 +59,7 @@ def test_bim_num_iter_paper_rule():
 def test_bim_num_iter_none_uses_paper_count(backend, audio, monkeypatch):
     seen: list[int] = []
 
-    def fake_bar(num_iter, nested, desc=None):
+    def fake_bar(num_iter, nested, desc=None, verbose=True):
         seen.append(num_iter)
         return range(num_iter)
 
@@ -80,7 +80,7 @@ def test_bim_num_iter_none_uses_paper_count(backend, audio, monkeypatch):
 def test_bim_alpha_none_defaults_to_epsilon_over_ten(backend, audio, monkeypatch):
     seen: list[int] = []
 
-    def fake_bar(num_iter, nested, desc=None):
+    def fake_bar(num_iter, nested, desc=None, verbose=True):
         seen.append(num_iter)
         return range(num_iter)
 
