@@ -64,7 +64,7 @@ class RoomSimulator:
         rt60: tuple[float, float] = _DEFAULT_RT60,
         sample_rate: int = 16000,
         *,
-        _rirs: list[np.ndarray] | None = None,
+        _rirs: Sequence[np.ndarray | torch.Tensor | Sequence[float]] | None = None,
     ) -> None:
         self.sample_rate = sample_rate
         self._rng = np.random.default_rng(seed)
