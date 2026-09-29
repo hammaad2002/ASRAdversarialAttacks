@@ -31,11 +31,26 @@ def ctc_loss(logits: torch.Tensor, target_ids: torch.Tensor, blank_id: int) -> t
     )
 
 
-def resolve_target(backend: ASRBackend, audio: torch.Tensor, target, targeted: bool) -> str:
+def resolve_target(
+    backend: ASRBackend,
+    audio: torch.Tensor,
+    target,
+    targeted: bool,
+    label=None,
+) -> str:
+    """Return the reference transcript used by the loss and the success check.
+
+    Targeted: ``target``. Untargeted: ``label`` if given, else the greedy decode
+    of ``audio``.
+    """
     if targeted:
+        if label is not None:
+            raise ValueError("label is only used for untargeted attacks; pass target instead")
         if target is None:
             raise ValueError("A target transcription is required for a targeted attack")
         return as_transcript(target)
+    if label is not None:
+        return as_transcript(label)
     return backend.decode(audio)
 
 
