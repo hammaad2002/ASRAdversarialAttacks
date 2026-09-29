@@ -9,18 +9,16 @@ import numpy as np
 import pytest
 import torch
 
+from asr_attacks.attacks._optim import _bounded_search, _silence_loss
 from asr_attacks.attacks.common import ctc_loss
-from asr_attacks.attacks.cw import (
-    _bounded_search,
-    _silence_loss,
-    cw,
-    imperceptible,
-)
+from asr_attacks.attacks.cw import cw
+from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.metrics import db_distortion
 from asr_attacks.rooms import RoomSimulator, _fft_convolve_same_length
 from asr_attacks.tensors import prepare_audio
 
-_cw_module = sys.modules["asr_attacks.attacks.cw"]
+# The package re-exports the ``imperceptible`` function, which shadows the submodule name.
+_imperceptible_module = sys.modules["asr_attacks.attacks.imperceptible"]
 
 
 @pytest.fixture
@@ -39,8 +37,8 @@ def patch_psycho(monkeypatch):
         time = max(delta.shape[-1] // 512, 1)
         return torch.zeros(1, 1025, time, dtype=torch.float64, device=device)
 
-    monkeypatch.setattr(_cw_module, "compute_masking_threshold", fake_threshold)
-    monkeypatch.setattr(_cw_module, "psd_transform", fake_psd)
+    monkeypatch.setattr(_imperceptible_module, "compute_masking_threshold", fake_threshold)
+    monkeypatch.setattr(_imperceptible_module, "psd_transform", fake_psd)
 
 
 def test_cw_objective_is_squared_l2_plus_c_ctc(backend, audio):

@@ -6,9 +6,8 @@ import numpy as np
 import torch
 
 from asr_attacks.attacker import ASRAttacker
-from asr_attacks.attacks.cw import (
-    _CW_EPS,
-    _CW_LR,
+from asr_attacks.attacks.cw import _CW_EPS, _CW_LR
+from asr_attacks.attacks.imperceptible import (
     _EPS_QIN,
     _LR1_QIN,
     _LR2_QIN,
