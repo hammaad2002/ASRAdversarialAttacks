@@ -25,6 +25,17 @@ def backend() -> CTCModuleBackend:
 
 
 @pytest.fixture
+def silent_backend() -> CTCModuleBackend:
+    """A model whose clean transcript is empty, so a silence target is already reached."""
+    torch.manual_seed(0)
+    model = TinyCTC()
+    with torch.no_grad():
+        model.conv.weight.mul_(0.1)
+        model.conv.bias.copy_(torch.tensor([3.0, 0.0, 0.0, 0.0, 0.0]))
+    return CTCModuleBackend(model, labels=LABELS, device="cpu")
+
+
+@pytest.fixture
 def audio() -> torch.Tensor:
     torch.manual_seed(1)
     return torch.randn(1, 1600) * 0.05

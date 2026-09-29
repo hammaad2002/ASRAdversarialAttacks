@@ -19,11 +19,13 @@ def _run_every_attack(backend, audio, long_audio, rooms, verbose):
     fgsm(backend, audio, epsilon=0.01, targeted=True, target="AB")
     bim(backend, audio, epsilon=0.01, num_iter=2, targeted=True, target="AB", **quiet)
     pgd(backend, audio, epsilon=0.01, num_iter=2, restarts=2, **quiet)
-    cw_kwargs = dict(num_iter=2, early_stop=False, search_eps=False, targeted=True, target="AB")
-    cw(backend, audio, **cw_kwargs, **quiet)
+    cw_kwargs = dict(num_iter=2, early_stop=False, search_eps=False, targeted=True)
+    cw(backend, audio, target="AB", **cw_kwargs, **quiet)
+    # The margin stage only runs when the CTC stage reached its target: aim at the clean
+    # transcript, and treat a skipped stage as a failure so its bar is really exercised.
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        cw(backend, audio, loss="margin", **cw_kwargs, **quiet)
+        warnings.simplefilter("error", UserWarning)
+        cw(backend, audio, loss="margin", target=backend.decode(audio), **cw_kwargs, **quiet)
     imperceptible(
         backend,
         long_audio,
@@ -60,7 +62,12 @@ def test_verbose_true_draws_progress_bars(backend, audio, long_audio, rooms, cap
     """Positive control: the silence above is caused by ``verbose``, not by capture."""
     _run_every_attack(backend, audio, long_audio, rooms, verbose=True)
     captured = capsys.readouterr()
-    for stage in ("*****Attack Stage 1*****", "*****Attack Stage 2*****", "*****Robust R1*****"):
+    for stage in (
+        "*****Attack Stage 1*****",
+        "*****Attack Stage 2*****",
+        "*****Robust R1*****",
+        "CW margin",
+    ):
         assert stage in captured.err
 
 
