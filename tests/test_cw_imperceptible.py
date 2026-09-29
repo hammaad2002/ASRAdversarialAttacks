@@ -25,7 +25,10 @@ _cw_module = sys.modules["asr_attacks.attacks.cw"]
 
 @pytest.fixture
 def patch_psycho(monkeypatch):
-    """Avoid librosa/numba in CI: stage-2 only needs a finite masking penalty."""
+    """Skip the STFT for speed: most tests only need a finite masking penalty.
+
+    ``tests/test_psychoacoustic.py`` exercises the real masking code.
+    """
 
     def fake_threshold(waveform, sample_rate=16000, **_kwargs):
         n = max(int(np.asarray(waveform).size) // 512, 1)

@@ -14,10 +14,42 @@
 
 from __future__ import annotations
 
-import librosa
 import numpy as np
 import scipy.signal
 import torch
+
+
+def _stft(
+    waveform: np.ndarray,
+    n_fft: int,
+    hop_length: int,
+    win_length: int,
+    window: np.ndarray,
+) -> np.ndarray:
+    """Short-time Fourier transform without padding (``librosa.stft(center=False)``).
+
+    Frames start at ``0, hop_length, 2 * hop_length, ...`` and only complete frames are
+    kept, so the result has ``1 + (len - n_fft) // hop_length`` columns. A ``window``
+    shorter than ``n_fft`` is zero-padded symmetrically, as librosa does.
+
+    Returns:
+        Complex array of shape ``(1 + n_fft // 2, n_frames)``.
+    """
+    signal = np.asarray(waveform, dtype=np.float64)
+    if signal.ndim != 1:
+        raise ValueError(f"Expected a mono waveform of shape (samples,), got {signal.shape}")
+    if signal.size < n_fft:
+        raise ValueError(
+            f"Audio has {signal.size} samples but the masking threshold needs at least "
+            f"n_fft={n_fft} (about {n_fft / 16000:.2f} s at 16 kHz)"
+        )
+    if win_length > n_fft:
+        raise ValueError(f"win_length={win_length} cannot exceed n_fft={n_fft}")
+    padded_window = np.zeros(n_fft, dtype=np.float64)
+    left = (n_fft - win_length) // 2
+    padded_window[left : left + win_length] = window
+    frames = np.lib.stride_tricks.sliding_window_view(signal, n_fft)[::hop_length]
+    return np.fft.rfft(frames * padded_window, n=n_fft, axis=-1).T
 
 
 def psd_transform(
@@ -55,14 +87,7 @@ def compute_masking_threshold(
     sample_rate: int = 16000,
 ) -> tuple[np.ndarray, float]:
     window = scipy.signal.get_window("hann", win_length, fftbins=True)
-    transformed = librosa.stft(
-        y=waveform,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=win_length,
-        window=window,
-        center=False,
-    )
+    transformed = _stft(waveform, n_fft, hop_length, win_length, window)
     transformed = transformed * np.sqrt(8.0 / 3.0)
     psd = abs(transformed / win_length)
     original_max_psd = float(np.max(psd * psd))
@@ -70,7 +95,7 @@ def compute_masking_threshold(
         psd = (20 * np.log10(psd)).clip(min=-200)
     psd = 96 - np.max(psd) + psd
 
-    freqs = librosa.fft_frequencies(sr=sample_rate, n_fft=n_fft)
+    freqs = np.linspace(0.0, sample_rate / 2.0, n_fft // 2 + 1)
     barks = 13 * np.arctan(0.00076 * freqs) + 3.5 * np.arctan(pow(freqs / 7500.0, 2))
 
     ath = np.zeros(len(barks), dtype=np.float64) - np.inf

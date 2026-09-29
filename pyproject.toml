@@ -30,7 +30,6 @@ dependencies = [
     "torch>=2.0",
     "tqdm>=4.64",
     "jiwer>=3.0",
-    "librosa>=0.10",
     "scipy>=1.10",
 ]
 
