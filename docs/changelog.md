@@ -2,7 +2,7 @@
 
 The file in git is [`CHANGELOG.md`](https://github.com/hammaad2002/ASRAdversarialAttacks/blob/main/CHANGELOG.md).
 
-## 0.3.0 - 2026-09-29
+## 0.3.0 - 2026-09-30
 
 The first release meant for PyPI: every attack now follows its paper, the backends and
 metrics were audited, and the project has CI, coverage, a documentation site and a
