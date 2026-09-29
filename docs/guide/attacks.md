@@ -15,12 +15,20 @@ Shared arguments:
 | `norm` | `"inf"` (default), `2`, or `1` — FGSM, BIM, and PGD |
 | `nested` | `True` if you wrap this call in another tqdm loop |
 | `early_stop` | Stop when the greedy transcript succeeds |
+| `verbose` | Show progress bars and early-stop messages; `False` is fully silent |
 
 Every attack supports targeted and untargeted modes (untargeted: model
 prediction or `label=`). Untargeted Imperceptible is a package extension.
 
 Untargeted attacks freeze the reference transcript at the start. They do not
 re-decode a moving target each step.
+
+!!! note "Target length"
+    CTC needs one logit frame per target token, plus one extra frame between
+    two identical neighbouring tokens (for example `LL` in `HELLO`). A target
+    that cannot fit in the model's output frames has no valid alignment, so the
+    attack raises a `ValueError` that names the frame count it needs. Use longer
+    audio or a shorter target.
 
 ## FGSM
 
