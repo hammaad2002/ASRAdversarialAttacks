@@ -109,6 +109,11 @@ def _classifier_loss(
     return loss if targeted else -loss
 
 
+# Imperceptible+robust alpha schedule: weaker penalty every _IR_DECREASE_EVERY steps without a
+# success (the offline stage 2 uses the same 50-step rule).
+_IR_DECREASE_EVERY = 50
+
+
 def _resolve_check_every(check_every: int | None, num_iter_decrease_eps: int) -> int:
     interval = num_iter_decrease_eps if check_every is None else check_every
     if interval <= 0:
@@ -614,6 +619,7 @@ def _run_imperceptible_robust(
     sample_rate: int,
     nested: bool,
     verbose: bool,
+    check_every: int,
     num_iter_ir1: int,
     num_iter_ir2: int,
     learning_rate_ir1: float,
@@ -669,6 +675,13 @@ def _run_imperceptible_robust(
             opt.step()
             _project_inplace(adversarial, original, bound)
 
+            # Decoding every room is the expensive part, so only look at the schedule's
+            # check steps (success -> stronger penalty) and 50-step boundaries (no success ->
+            # weaker penalty), like the offline stage 2.
+            check_success = (step + 1) % check_every == 0
+            check_fail = (step + 1) % _IR_DECREASE_EVERY == 0
+            if not (check_success or check_fail):
+                continue
             hits = sum(
                 1
                 for transform in transforms
@@ -679,13 +692,14 @@ def _run_imperceptible_robust(
                 )
             )
             if hits >= success_rooms:
-                alpha_t *= alpha_up
+                if check_success:
+                    alpha_t *= alpha_up
                 l_theta_val = float(loss_theta.detach())
                 if l_theta_val < best_theta:
                     best_theta = l_theta_val
                     best = adversarial.detach().clone()
-            elif (step + 1) % 50 == 0:
-                # IR2: paper has no decrease rule; package uses ×0.8 every 50.
+            elif check_fail:
+                # IR2: paper has no decrease rule; package uses x0.8 every 50.
                 alpha_t *= alpha_down
 
         return best
@@ -818,6 +832,7 @@ def imperceptible(
             sample_rate=sample_rate,
             nested=nested,
             verbose=verbose,
+            check_every=interval,
             num_iter_ir1=num_iter_ir1,
             num_iter_ir2=num_iter_ir2,
             learning_rate_ir1=learning_rate_ir1,

@@ -7,6 +7,15 @@ from asr_attacks.backends.module import CTCModuleBackend
 from tests.helpers import LABELS, TinyCTC
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _single_threaded_torch():
+    """The fixtures use toy tensors, where torch's thread pool costs ~10x more than it saves."""
+    previous = torch.get_num_threads()
+    torch.set_num_threads(1)
+    yield
+    torch.set_num_threads(previous)
+
+
 @pytest.fixture
 def backend() -> CTCModuleBackend:
     torch.manual_seed(0)
