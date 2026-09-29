@@ -54,8 +54,9 @@ def resolve_target(
     return backend.decode(audio)
 
 
-def iteration_bar(num_iter: int, nested: bool, desc: str | None = None):
-    return tqdm(range(num_iter), leave=not nested, desc=desc)
+def iteration_bar(num_iter: int, nested: bool, desc: str | None = None, verbose: bool = True):
+    """Progress bar over ``range(num_iter)``; ``verbose=False`` draws nothing."""
+    return tqdm(range(num_iter), leave=not nested, desc=desc, disable=not verbose)
 
 
 def maybe_early_stop(

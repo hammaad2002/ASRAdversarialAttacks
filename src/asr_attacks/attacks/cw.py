@@ -166,7 +166,7 @@ def _bounded_search(
         else "Stopping early: untargeted attack changed the transcription."
     )
 
-    for step in iteration_bar(num_iter, nested=nested, desc=desc):
+    for step in iteration_bar(num_iter, nested=nested, desc=desc, verbose=verbose):
         opt.zero_grad()
         wave = room_transform(adversarial) if room_transform is not None else adversarial
         loss_cls = _classifier_loss(
@@ -236,7 +236,7 @@ def _cw_margin_stage(
     best: torch.Tensor | None = None
     current_eps = float(epsilon)
 
-    for step in iteration_bar(num_iter, nested=nested, desc="CW margin"):
+    for step in iteration_bar(num_iter, nested=nested, desc="CW margin", verbose=verbose):
         opt.zero_grad()
         logits = backend.logits(adversarial)
         loss = torch.sum((adversarial - original) ** 2) + _margin_frame_loss(
@@ -426,7 +426,9 @@ def _imperceptible_stage2(
     best_l_theta = math.inf
     lr_decayed = False
 
-    for step in iteration_bar(num_iter2, nested=nested, desc="*****Attack Stage 2*****"):
+    for step in iteration_bar(
+        num_iter2, nested=nested, desc="*****Attack Stage 2*****", verbose=verbose
+    ):
         if not lr_decayed and step == 3000:
             for group in opt.param_groups:
                 group["lr"] *= 0.1
@@ -530,7 +532,9 @@ def _run_robust(
     silence = targeted and display_text(target_text) == ""
     target_ids = None if silence else backend.encode(target_text)
 
-    for step in iteration_bar(num_iter_r1, nested=nested, desc="*****Robust R1*****"):
+    for step in iteration_bar(
+        num_iter_r1, nested=nested, desc="*****Robust R1*****", verbose=verbose
+    ):
         opt.zero_grad()
         transformed = rooms.sample()(adversarial)
         loss = _classifier_loss(
@@ -562,7 +566,9 @@ def _run_robust(
     opt = _optimizer_for(opt_name, [adversarial], learning_rate_r2)
     best_r2: torch.Tensor | None = None
 
-    for step in iteration_bar(num_iter_r2, nested=nested, desc="*****Robust R2*****"):
+    for step in iteration_bar(
+        num_iter_r2, nested=nested, desc="*****Robust R2*****", verbose=verbose
+    ):
         opt.zero_grad()
         transforms = rooms.sample_set(m_rooms)
         loss = sum(
@@ -607,6 +613,7 @@ def _run_imperceptible_robust(
     bound: float,
     sample_rate: int,
     nested: bool,
+    verbose: bool,
     num_iter_ir1: int,
     num_iter_ir2: int,
     learning_rate_ir1: float,
@@ -651,7 +658,7 @@ def _run_imperceptible_robust(
         best = adversarial.detach().clone()
         best_theta = math.inf
 
-        for step in iteration_bar(num_iter, nested=nested, desc=desc):
+        for step in iteration_bar(num_iter, nested=nested, desc=desc, verbose=verbose):
             opt.zero_grad()
             transforms = rooms.sample_set(m_rooms)
             loss_cls = sum(classifier(transform(adversarial)) for transform in transforms) / float(
@@ -810,6 +817,7 @@ def imperceptible(
             bound=bound,
             sample_rate=sample_rate,
             nested=nested,
+            verbose=verbose,
             num_iter_ir1=num_iter_ir1,
             num_iter_ir2=num_iter_ir2,
             learning_rate_ir1=learning_rate_ir1,

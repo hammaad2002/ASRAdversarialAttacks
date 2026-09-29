@@ -70,7 +70,7 @@ def _iterative(
         else "Stopping early: untargeted attack changed the transcription."
     )
 
-    for _ in iteration_bar(num_iter, nested=nested, desc=desc):
+    for _ in iteration_bar(num_iter, nested=nested, desc=desc, verbose=verbose):
         adversarial = adversarial.detach().requires_grad_(True)
         logits = backend.logits(adversarial)
         loss = ctc_loss(logits, target_ids, backend.blank_id)

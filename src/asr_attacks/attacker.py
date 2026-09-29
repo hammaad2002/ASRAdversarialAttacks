@@ -30,7 +30,8 @@ class ASRAttacker:
     Args:
         backend: Model wrapper that can encode targets, decode audio, and
             return differentiable CTC logits.
-        verbose: Print early-stop messages from iterative attacks.
+        verbose: Show progress bars and early-stop messages. ``False`` keeps
+            attacks completely quiet.
     """
 
     def __init__(self, backend: ASRBackend, verbose: bool = True) -> None:
