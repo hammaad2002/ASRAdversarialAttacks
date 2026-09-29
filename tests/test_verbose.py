@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import warnings
 
-import numpy as np
-import pytest
-import torch
-
 from asr_attacks.attacker import ASRAttacker
 from asr_attacks.attacks.common import iteration_bar
 from asr_attacks.attacks.cw import cw
@@ -15,24 +11,7 @@ from asr_attacks.attacks.fgsm import fgsm
 from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.attacks.iterative import bim, pgd
 from asr_attacks.compat import ASRAttacks
-from asr_attacks.rooms import RoomSimulator
 from tests.helpers import LABELS, TinyCTC
-
-# Long enough for the real 2048-sample masking window.
-LONG = 3 * 2048
-
-
-@pytest.fixture
-def long_audio() -> torch.Tensor:
-    torch.manual_seed(2)
-    return torch.randn(1, LONG) * 0.05
-
-
-@pytest.fixture
-def rooms() -> RoomSimulator:
-    return RoomSimulator.from_rirs(
-        [np.array([1.0]), np.array([0.9, 0.1]), np.array([0.8, 0.15, 0.05])]
-    )
 
 
 def _run_every_attack(backend, audio, long_audio, rooms, verbose):
