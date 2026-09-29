@@ -24,7 +24,7 @@ class TinyCTC(nn.Module):
 def main() -> None:
     labels = ["-", "A", "B", "C", "|"]
     backend = CTCModuleBackend(TinyCTC(), labels=labels, device="cpu")
-    attacker = ASRAttacker(backend, verbose=False)
+    attacker = ASRAttacker(backend, verbose=True)
     audio = torch.randn(1, 1600) * 0.05
     adversarial = attacker.fgsm(audio, epsilon=0.02, targeted=False)
     print("clean:", attacker.decode(audio))

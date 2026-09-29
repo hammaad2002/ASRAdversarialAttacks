@@ -26,6 +26,13 @@ def test_spaces_become_word_delimiter_when_present():
     assert ids.tolist() == [1, 2, 1]
 
 
+def test_logits_last_dimension_must_match_label_count():
+    backend = CTCModuleBackend(TinyCTC(vocab=5), labels=["-", "A"], device="cpu")
+    audio = torch.randn(1, 1600)
+    with pytest.raises(ValueError, match="last dimension must equal len\\(labels\\)"):
+        backend.logits(audio)
+
+
 def test_greedy_decode_runs_without_grad(backend, audio):
     torch.set_grad_enabled(True)
     text = backend.decode(audio)

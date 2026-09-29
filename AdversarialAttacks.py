@@ -1,4 +1,4 @@
-"""Deprecated import path. Prefer ``from asr_attacks import ASRAttacks``."""
+"""Re-export of :class:`asr_attacks.ASRAttacks`."""
 
 from asr_attacks.compat import ASRAttacks
 
