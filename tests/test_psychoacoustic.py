@@ -141,3 +141,75 @@ def test_imperceptible_stage_two_with_real_masking(backend):
     assert out.shape == audio.numpy().shape
     assert np.isfinite(out).all()
     assert np.abs(out).max() <= 1.0 + 1e-5
+
+
+@pytest.mark.parametrize(
+    "make_delta",
+    [
+        lambda n: torch.zeros(n),
+        lambda n: torch.full((n,), 0.01),
+        lambda n: torch.zeros(n).index_fill_(0, torch.arange(0, n, 2), 0.02),
+    ],
+    ids=["zero", "constant", "alternating"],
+)
+def test_psd_transform_gradient_is_finite_for_degenerate_perturbations(make_delta):
+    """sqrt(sum(square(.))) has an infinite slope at 0, which turned these into all-NaN."""
+    samples = N_FFT + HOP * 12
+    delta = make_delta(samples).requires_grad_(True)
+
+    psd = psd_transform(delta, 1e-5, "cpu")
+    psd.sum().backward()
+
+    assert torch.isfinite(psd).all()
+    assert delta.grad is not None
+    assert torch.isfinite(delta.grad).all()
+
+
+def test_psd_transform_values_match_the_reference_formula():
+    samples = N_FFT + HOP * 12
+    delta = torch.from_numpy(np.random.default_rng(9).standard_normal(samples) * 0.01).float()
+    max_psd = 3.5e-6
+
+    got = psd_transform(delta, max_psd, "cpu")
+
+    window = torch.hann_window(N_FFT)
+    spectrum = torch.view_as_real(
+        torch.stft(
+            delta,
+            n_fft=N_FFT,
+            hop_length=HOP,
+            win_length=N_FFT,
+            center=False,
+            window=window,
+            return_complex=True,
+        )
+    )
+    magnitude = torch.sqrt(torch.sum(torch.square(spectrum), -1))
+    expected = 10.0**9.6 / max_psd * (((8.0 / 3.0) * magnitude / N_FFT) ** 2).double()
+    torch.testing.assert_close(got[0], expected, rtol=1e-6, atol=0)
+
+
+def test_stage_two_from_unperturbed_audio_stays_finite(backend, long_audio, monkeypatch):
+    """Stage 1 with no steps leaves delta == 0, the exact case that used to produce NaN.
+
+    Stage 2 only returns its own iterate once the decode matches the target, so the decode
+    is stubbed to match; otherwise the (finite) stage-1 audio would be returned instead.
+    """
+    monkeypatch.setattr(backend, "decode", lambda audio: "AB")
+
+    out = imperceptible(
+        backend,
+        long_audio,
+        "AB",
+        epsilon=0.05,
+        num_iter1=0,
+        num_iter2=20,
+        early_stop_cw=False,
+        search_eps_cw=False,
+        nested=False,
+        verbose=False,
+        sample_rate=SR,
+    )
+
+    assert np.isfinite(out).all()
+    assert np.abs(out - long_audio.numpy()).max() > 0.0  # it really is the stage-2 iterate
