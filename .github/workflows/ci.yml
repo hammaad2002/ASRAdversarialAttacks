@@ -5,20 +5,128 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
 jobs:
-  test:
+  pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pre-commit/action@v3.0.1
+
+  lint:
+    name: lint (ruff, mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install CPU PyTorch
+        run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install package and dev extras
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+
+  test:
+    name: test (py${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
+        extras: ["dev,hf,rooms"]
+        include:
+          # pyroomacoustics compiles C++ code; the other platforms skip its extra.
+          - os: macos-latest
+            python-version: "3.12"
+            extras: "dev,hf"
+          - os: windows-latest
+            python-version: "3.12"
+            extras: "dev,hf"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: python -m pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check src tests examples AdversarialAttacks.py
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install CPU PyTorch
+        # The default macOS and Windows wheels on PyPI are already CPU-only.
+        if: runner.os == 'Linux'
+        run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install package and extras
+        run: python -m pip install -e ".[${{ matrix.extras }}]"
       - name: Test
-        run: pytest
+        run: pytest --cov=asr_attacks --cov-report=term --cov-report=xml --cov-fail-under=75
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: false
+
+  build:
+    name: build (sdist, wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: python -m pip install build twine && python -m build
+      - name: Check metadata
+        run: python -m twine check --strict dist/*
+      - name: Install the wheel in a clean virtualenv
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          "$RUNNER_TEMP/smoke/bin/python" -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/smoke/bin/python" -c "
+          import importlib.metadata as metadata
+          import asr_attacks
+          assert asr_attacks.__version__ == metadata.version('asr-attacks'), 'version mismatch'
+          print('asr-attacks', asr_attacks.__version__, 'imports from', asr_attacks.__file__)
+          "
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # One stable name for branch protection instead of every matrix cell.
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs: [pre-commit, lint, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then exit 1; fi
+          done
