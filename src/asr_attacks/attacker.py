@@ -3,9 +3,9 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from asr_attacks.attacks.cw import (
-    _CW_EPS,
-    _CW_LR,
+from asr_attacks.attacks.cw import _CW_EPS, _CW_LR, cw
+from asr_attacks.attacks.fgsm import fgsm
+from asr_attacks.attacks.imperceptible import (
     _EPS_QIN,
     _LR1_QIN,
     _LR2_QIN,
@@ -13,10 +13,8 @@ from asr_attacks.attacks.cw import (
     _LR_R1,
     _LR_R2,
     _ROBUST_DELTA,
-    cw,
     imperceptible,
 )
-from asr_attacks.attacks.fgsm import fgsm
 from asr_attacks.attacks.iterative import bim, pgd
 from asr_attacks.backends.base import ASRBackend
 from asr_attacks.metrics import alignment_counts, word_error_rate

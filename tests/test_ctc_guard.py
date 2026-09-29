@@ -7,8 +7,9 @@ import pytest
 import torch
 
 from asr_attacks.attacks.common import ctc_loss, min_ctc_frames
-from asr_attacks.attacks.cw import cw, imperceptible
+from asr_attacks.attacks.cw import cw
 from asr_attacks.attacks.fgsm import fgsm
+from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.attacks.iterative import bim, pgd
 
 

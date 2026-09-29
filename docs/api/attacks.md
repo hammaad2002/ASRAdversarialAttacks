@@ -11,4 +11,4 @@ These are the functions `ASRAttacker` calls. Import them from
 
 ::: asr_attacks.attacks.cw.cw
 
-::: asr_attacks.attacks.cw.imperceptible
+::: asr_attacks.attacks.imperceptible.imperceptible

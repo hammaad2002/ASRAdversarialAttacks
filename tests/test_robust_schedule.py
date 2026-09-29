@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import torch
 
-from asr_attacks.attacks.cw import imperceptible
+from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.rooms import RoomSimulator
 
 M_ROOMS = 10  # fixed by the robust stages (Qin et al. sample M = 10 rooms per step)

@@ -10,8 +10,9 @@ import torch
 
 from asr_attacks.attacker import ASRAttacker
 from asr_attacks.attacks.common import iteration_bar
-from asr_attacks.attacks.cw import cw, imperceptible
+from asr_attacks.attacks.cw import cw
 from asr_attacks.attacks.fgsm import fgsm
+from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.attacks.iterative import bim, pgd
 from asr_attacks.compat import ASRAttacks
 from asr_attacks.rooms import RoomSimulator

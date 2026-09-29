@@ -10,7 +10,7 @@ import pytest
 import scipy.signal
 import torch
 
-from asr_attacks.attacks.cw import imperceptible
+from asr_attacks.attacks.imperceptible import imperceptible
 from asr_attacks.psychoacoustic import _stft, compute_masking_threshold, psd_transform
 
 N_FFT = 2048
