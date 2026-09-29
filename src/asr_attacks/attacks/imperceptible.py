@@ -225,17 +225,19 @@ def _run_robust(
     ):
         opt.zero_grad()
         transforms = rooms.sample_set(m_rooms)
-        loss = sum(
-            _classifier_loss(
-                backend,
-                transform(adversarial),
-                target_text,
-                targeted=targeted,
-                silence=silence,
-                target_ids=target_ids,
-            )
-            for transform in transforms
-        ) / float(m_rooms)
+        loss = torch.stack(
+            [
+                _classifier_loss(
+                    backend,
+                    transform(adversarial),
+                    target_text,
+                    targeted=targeted,
+                    silence=silence,
+                    target_ids=target_ids,
+                )
+                for transform in transforms
+            ]
+        ).mean()
         loss.backward()
         if adversarial.grad is not None:
             adversarial.grad.sign_()
@@ -280,9 +282,10 @@ def _run_imperceptible_robust(
     theta_t = torch.tensor(theta.transpose(1, 0), device=backend.device)
     silence = targeted and display_text(target_text) == ""
     target_ids = None if silence else backend.encode(target_text)
-    ref_ids = backend.encode(target_text) if not targeted else target_ids
+    ref_ids: torch.Tensor | None = None
     ctc_ref: torch.Tensor | None = None
     if not targeted:
+        ref_ids = backend.encode(target_text)
         with torch.no_grad():
             ctc_ref = ctc_loss(backend.logits(robust_start), ref_ids, backend.blank_id).detach()
 
@@ -316,9 +319,9 @@ def _run_imperceptible_robust(
         for step in iteration_bar(num_iter, nested=nested, desc=desc, verbose=verbose):
             opt.zero_grad()
             transforms = rooms.sample_set(m_rooms)
-            loss_cls = sum(classifier(transform(adversarial)) for transform in transforms) / float(
-                m_rooms
-            )
+            loss_cls = torch.stack(
+                [classifier(transform(adversarial)) for transform in transforms]
+            ).mean()
             loss_theta = _psychoacoustic_loss(adversarial, original, theta_t, original_max_psd)
             (loss_cls + alpha_t * loss_theta).backward()
             opt.step()

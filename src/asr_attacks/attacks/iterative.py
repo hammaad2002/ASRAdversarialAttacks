@@ -164,7 +164,7 @@ def _prefer_restart(
     best_loss: float | None,
     targeted: bool,
 ) -> bool:
-    if best_success is None:
+    if best_success is None or best_loss is None:
         return True
     if success and not best_success:
         return True
