@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,19 +7,23 @@ name = "asr-attacks"
 version = "0.2.0"
 description = "White-box adversarial attacks for CTC automatic speech recognition models."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
-authors = [{ name = "Hammad Ali Khan" }]
-keywords = ["asr", "adversarial-attacks", "speech", "robustness", "wav2vec2"]
+authors = [
+    { name = "Hammad Ali Khan", email = "114487807+hammaad2002@users.noreply.github.com" },
+]
+keywords = ["asr", "adversarial-attacks", "speech", "robustness", "wav2vec2", "ctc"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 dependencies = [
     "numpy>=1.22",
@@ -33,14 +37,26 @@ dependencies = [
 [project.optional-dependencies]
 hf = ["transformers>=4.30"]
 wav2vec2 = ["torchaudio>=2.0"]
+rooms = ["pyroomacoustics>=0.7"]
 dev = [
     "pytest>=7.4",
     "ruff>=0.6",
     "pre-commit>=3.5",
 ]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+build = [
+    "build>=1.2",
+    "twine>=5.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/hammaad2002/ASRAdversarialAttacks"
+Documentation = "https://hammaad2002.github.io/ASRAdversarialAttacks/"
+Changelog = "https://github.com/hammaad2002/ASRAdversarialAttacks/blob/main/CHANGELOG.md"
 Issues = "https://github.com/hammaad2002/ASRAdversarialAttacks/issues"
 Source = "https://github.com/hammaad2002/ASRAdversarialAttacks"
 
