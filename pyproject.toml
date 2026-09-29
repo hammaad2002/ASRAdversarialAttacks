@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asr-attacks"
-version = "0.2.0"
+version = "0.3.0"
 description = "White-box adversarial attacks for CTC automatic speech recognition models."
 readme = "README.md"
 license = "Apache-2.0"
@@ -37,6 +37,12 @@ dependencies = [
 hf = ["transformers>=4.30"]
 wav2vec2 = ["torchaudio>=2.0"]
 rooms = ["pyroomacoustics>=0.7"]
+benchmark = [
+    "torchaudio>=2.0",
+    "huggingface_hub>=0.20",
+    "pyarrow>=14",
+    "soundfile>=0.12",
+]
 dev = [
     "pytest>=7.4",
     "ruff>=0.16.7,<0.17",
