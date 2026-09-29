@@ -6,8 +6,6 @@ user-supplied impulse responses, so nothing here needs librosa or pyroomacoustic
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import pytest
 import torch
@@ -100,13 +98,11 @@ CW_CASES = {
     "ctc-untargeted": {"loss": "ctc", "targeted": False},
     "ctc-untargeted-label": {"loss": "ctc", "targeted": False, "label": "CAB"},
     "ctc-silence": {"loss": "ctc", "targeted": True, "target": ""},
-    "margin-targeted": {"loss": "margin", "targeted": True, "target": "AB"},
-    "margin-silence": {"loss": "margin", "targeted": True, "target": ""},
-    "margin-kappa": {"loss": "margin", "targeted": True, "target": "AB", "kappa": 2.0},
 }
+# ``loss="margin"`` only starts after the CTC stage hit its target, so it lives in
+# ``test_cw_margin.py`` where the target is reachable and a skipped stage is an error.
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")
 @pytest.mark.parametrize("search_eps", [False, True], ids=["fixed-bound", "bound-search"])
 @pytest.mark.parametrize("kwargs", CW_CASES.values(), ids=CW_CASES)
 def test_cw_losses_and_targets_return_finite_in_range_audio(backend, audio, kwargs, search_eps):
@@ -127,14 +123,12 @@ def test_cw_losses_and_targets_return_finite_in_range_audio(backend, audio, kwar
     assert np.abs(out - audio.numpy()).max() <= EPSILON + 1e-6
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")
-@pytest.mark.parametrize("loss", ["ctc", "margin"])
-def test_cw_db_bound_limits_the_distortion(backend, audio, loss):
+def test_cw_db_bound_limits_the_distortion(backend, audio):
     out = cw(
         backend,
         audio,
         db_bound=-25.0,
-        loss=loss,
+        loss="ctc",
         targeted=True,
         target="AB",
         num_iter=6,
@@ -148,23 +142,21 @@ def test_cw_db_bound_limits_the_distortion(backend, audio, loss):
     assert db_distortion(audio, out) <= -25.0 + 1e-3
 
 
-def test_cw_return_tensor_stays_finite_for_silence_and_margin(backend, audio):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        out = cw(
-            backend,
-            audio,
-            loss="margin",
-            targeted=True,
-            target="",
-            epsilon=EPSILON,
-            num_iter=4,
-            early_stop=False,
-            search_eps=False,
-            nested=False,
-            verbose=False,
-            return_tensor=True,
-        )
+def test_cw_return_tensor_stays_finite_for_silence(backend, audio):
+    out = cw(
+        backend,
+        audio,
+        loss="ctc",
+        targeted=True,
+        target="",
+        epsilon=EPSILON,
+        num_iter=4,
+        early_stop=False,
+        search_eps=False,
+        nested=False,
+        verbose=False,
+        return_tensor=True,
+    )
     assert isinstance(out, torch.Tensor)
     assert torch.isfinite(out).all()
     assert out.abs().max() <= 1.0 + 1e-6

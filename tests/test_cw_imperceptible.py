@@ -156,13 +156,14 @@ def test_cw_margin_untargeted_raises_and_alignment_length(backend, audio):
     assert alignment.numel() == logits.shape[1]
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
+        # A skipped margin stage would make this test vacuous: aim at the clean transcript.
+        warnings.simplefilter("error", UserWarning)
         cw(
             backend,
             audio,
             loss="margin",
             targeted=True,
-            target="A",
+            target=backend.decode(audio),
             num_iter=2,
             early_stop=False,
             search_eps=False,
