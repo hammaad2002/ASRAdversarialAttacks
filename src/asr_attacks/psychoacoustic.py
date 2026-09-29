@@ -61,18 +61,19 @@ def psd_transform(
     win_length: int = 2048,
 ) -> torch.Tensor:
     window = torch.hann_window(win_length, device=device)
-    delta_stft = torch.view_as_real(
-        torch.stft(
-            delta,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length,
-            center=False,
-            window=window,
-            return_complex=True,
-        )
+    delta_stft = torch.stft(
+        delta,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length,
+        center=False,
+        window=window,
+        return_complex=True,
     )
-    transformed = torch.sqrt(torch.sum(torch.square(delta_stft), -1))
+    # Complex abs equals sqrt(re^2 + im^2) but has a zero (sub)gradient at 0. Writing the
+    # magnitude as sqrt(sum(square(...))) makes every gradient NaN as soon as a bin is exactly
+    # zero, which happens whenever the perturbation is zero or constant over a frame.
+    transformed = torch.abs(delta_stft)
     psd = ((8.0 / 3.0) * transformed / win_length) ** 2
     scale = torch.pow(torch.tensor(10.0, dtype=torch.float64, device=device), 9.6)
     max_psd = torch.reshape(torch.as_tensor(original_max_psd, device=device), [-1, 1, 1])
