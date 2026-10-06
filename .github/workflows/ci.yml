@@ -20,8 +20,8 @@ jobs:
     name: pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: pre-commit/action@v3.0.1
@@ -30,8 +30,8 @@ jobs:
     name: lint (ruff, mypy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           # The oldest supported Python: mypy is configured for 3.10, so it also rejects any
           # standard-library API that only exists in a newer version.
@@ -65,8 +65,8 @@ jobs:
             python-version: "3.12"
             extras: "dev,hf"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -81,7 +81,7 @@ jobs:
         run: pytest --cov=asr_attacks --cov-report=term --cov-report=xml --cov-fail-under=75
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
@@ -91,8 +91,8 @@ jobs:
     name: build (sdist, wheel)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Build
@@ -111,7 +111,7 @@ jobs:
           assert asr_attacks.__version__ == metadata.version('asr-attacks'), 'version mismatch'
           print('asr-attacks', asr_attacks.__version__, 'imports from', asr_attacks.__file__)
           "
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
